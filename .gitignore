@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.python-version
+
+# Virtual Environments
+.venv/
+venv/
+env/
+bin/
+lib/
+share/
+
+# UV
+# uv.lock is generally committed for reproducible environments
+
+# VS Code
+.vscode/
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.code-workspace
+
+# OS specific
+.DS_Store
+Thumbs.db
