@@ -12,7 +12,6 @@ env/
 bin/
 lib/
 share/
-
 # UV
 # uv.lock is generally committed for reproducible environments
 
@@ -27,3 +26,4 @@ share/
 # OS specific
 .DS_Store
 Thumbs.db
+CREDENTIALS.md
