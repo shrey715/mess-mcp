@@ -1,0 +1,1 @@
+add all MCP servers under separate folders here
