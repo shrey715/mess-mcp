@@ -12,12 +12,14 @@ import mcp.types as types
 
 import chromadb
 from sentence_transformers import SentenceTransformer
+from pathlib import Path
 
 # ============================================================================
 # CONFIGURATION
 # ============================================================================
 
-VECTOR_DB_PATH = "./vector_db"
+# Use absolute path relative to this script's location
+VECTOR_DB_PATH = str(Path(__file__).parent / "vector_db")
 COLLECTION_NAME = "intranet_docs"
 EMBEDDING_MODEL = "intfloat/e5-base-v2"
 
