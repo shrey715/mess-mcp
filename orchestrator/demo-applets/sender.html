@@ -21,7 +21,7 @@
         }
 
         .container {
-            max-width: 600px;
+            max-width: 700px;
             margin: 0 auto;
         }
 
@@ -52,8 +52,49 @@
             letter-spacing: 0.5px;
         }
 
+        .tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+
+        .tab {
+            padding: 8px 16px;
+            background: rgba(255, 255, 255, 0.1);
+            border: none;
+            border-radius: 8px;
+            color: #94a3b8;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .tab.active {
+            background: #6366f1;
+            color: #fff;
+        }
+
+        .tab:hover:not(.active) {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        label {
+            display: block;
+            font-size: 12px;
+            color: #94a3b8;
+            margin-bottom: 4px;
+        }
+
         input,
-        textarea {
+        textarea,
+        select {
             width: 100%;
             padding: 12px;
             border: 1px solid rgba(255, 255, 255, 0.2);
@@ -65,14 +106,24 @@
         }
 
         input:focus,
-        textarea:focus {
+        textarea:focus,
+        select:focus {
             outline: none;
             border-color: #6366f1;
         }
 
         textarea {
-            min-height: 100px;
+            min-height: 80px;
             resize: vertical;
+        }
+
+        .row {
+            display: flex;
+            gap: 12px;
+        }
+
+        .row>* {
+            flex: 1;
         }
 
         button {
@@ -99,6 +150,14 @@
 
         button.secondary:hover {
             background: rgba(255, 255, 255, 0.2);
+        }
+
+        button.calendar {
+            background: #22c55e;
+        }
+
+        button.calendar:hover {
+            background: #16a34a;
         }
 
         .log {
@@ -163,8 +222,8 @@
 
 <body>
     <div class="container">
-        <h1>📤 Sender Applet</h1>
-        <p class="subtitle">Send messages to the Receiver applet via IPC Bridge</p>
+        <h1>📤 IPC Sender</h1>
+        <p class="subtitle">Send messages and calendar events via IPC Bridge</p>
 
         <div class="card">
             <h2>Connection Status</h2>
@@ -175,19 +234,72 @@
         </div>
 
         <div class="card">
-            <h2>Send Message</h2>
-            <input type="text" id="targetApplet" placeholder="Target Applet ID (e.g., receiver-demo)"
-                value="receiver-demo">
-            <textarea id="messageContent" placeholder="Enter your message here...">Hello from Sender! 👋</textarea>
-            <button onclick="sendMessage()">Send Message</button>
-            <button class="secondary" onclick="sendCalendarEvent()">Send Calendar Event</button>
-            <button class="secondary" onclick="sendDocShare()">Send Doc Share</button>
+            <h2>Target Applet</h2>
+            <input type="text" id="targetApplet" placeholder="Target Applet ID" value="unified-calendar">
+        </div>
+
+        <div class="card">
+            <div class="tabs">
+                <button class="tab active" onclick="switchTab('message')">💬 Message</button>
+                <button class="tab" onclick="switchTab('calendar')">📅 Calendar Event</button>
+                <button class="tab" onclick="switchTab('doc')">📄 Document</button>
+            </div>
+
+            <!-- Message Tab -->
+            <div class="tab-content active" id="tab-message">
+                <label>Message Content</label>
+                <textarea id="messageContent" placeholder="Enter your message here...">Hello from Sender! 👋</textarea>
+                <button onclick="sendMessage()">Send Message</button>
+            </div>
+
+            <!-- Calendar Event Tab -->
+            <div class="tab-content" id="tab-calendar">
+                <label>Event Title</label>
+                <input type="text" id="eventTitle" placeholder="Meeting title" value="Team Standup">
+
+                <div class="row">
+                    <div>
+                        <label>Date</label>
+                        <input type="date" id="eventDate">
+                    </div>
+                    <div>
+                        <label>Time</label>
+                        <input type="time" id="eventTime" value="10:00">
+                    </div>
+                    <div>
+                        <label>Duration (min)</label>
+                        <input type="number" id="eventDuration" value="30" min="5" max="480">
+                    </div>
+                </div>
+
+                <label>Description (optional)</label>
+                <textarea id="eventDescription" placeholder="Event description..."
+                    rows="2">Daily team sync meeting</textarea>
+
+                <label>Location (optional)</label>
+                <input type="text" id="eventLocation" placeholder="Meeting room or video link"
+                    value="Conference Room A">
+
+                <button class="calendar" onclick="sendCalendarEvent()">📅 Send to Calendar</button>
+                <button class="secondary" onclick="sendQuickEvent()">⚡ Quick Event (Now + 1hr)</button>
+            </div>
+
+            <!-- Document Tab -->
+            <div class="tab-content" id="tab-doc">
+                <label>Document Title</label>
+                <input type="text" id="docTitle" placeholder="Document name" value="Q4 Report.pdf">
+
+                <label>Document URL</label>
+                <input type="text" id="docUrl" placeholder="https://..." value="https://example.com/docs/report.pdf">
+
+                <button onclick="sendDocShare()">Share Document</button>
+            </div>
         </div>
 
         <div class="card">
             <h2>Message Log</h2>
             <div class="log" id="log">
-                <div class="log-entry">Waiting for messages...</div>
+                <div class="log-entry">Waiting for activity...</div>
             </div>
         </div>
     </div>
@@ -195,6 +307,17 @@
     <script>
         const log = document.getElementById('log');
         const statusText = document.getElementById('statusText');
+
+        // Set default date to today
+        document.getElementById('eventDate').value = new Date().toISOString().split('T')[0];
+
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+
+            document.querySelector(`.tab-content#tab-${tabName}`).classList.add('active');
+            event.target.classList.add('active');
+        }
 
         function addLog(message, type = 'info') {
             const entry = document.createElement('div');
@@ -235,11 +358,11 @@
             }
 
             try {
-                const result = await window.bridge.send(target, {
+                await window.bridge.send(target, {
                     type: 'MESSAGE',
                     payload: { text: content }
                 });
-                addLog(`Sent to ${target}: ${content}`, 'sent');
+                addLog(`Sent message to ${target}: "${content.substring(0, 50)}..."`, 'sent');
             } catch (error) {
                 addLog(`Error: ${error.message}`, 'error');
             }
@@ -253,19 +376,60 @@
                 return;
             }
 
+            const title = document.getElementById('eventTitle').value;
+            const date = document.getElementById('eventDate').value;
+            const time = document.getElementById('eventTime').value;
+            const duration = parseInt(document.getElementById('eventDuration').value);
+            const description = document.getElementById('eventDescription').value;
+            const location = document.getElementById('eventLocation').value;
+
+            // Create date object
+            const startDate = new Date(`${date}T${time}`);
+
             const event = {
                 type: 'CALENDAR_EVENT',
                 payload: {
-                    title: 'Team Meeting',
-                    date: new Date().toISOString(),
-                    duration: 60,
-                    attendees: ['alice@example.com', 'bob@example.com']
+                    title: title,
+                    start: startDate.getTime(),
+                    duration: duration,
+                    description: description,
+                    location: location
                 }
             };
 
             try {
                 await window.bridge.send(target, event);
-                addLog(`Sent calendar event to ${target}`, 'sent');
+                addLog(`📅 Sent calendar event "${title}" to ${target}`, 'sent');
+                addLog(`   Date: ${startDate.toLocaleString()}, Duration: ${duration}min`, 'sent');
+            } catch (error) {
+                addLog(`Error: ${error.message}`, 'error');
+            }
+        }
+
+        async function sendQuickEvent() {
+            const target = document.getElementById('targetApplet').value;
+
+            if (!window.bridge) {
+                addLog('Cannot send - bridge not available', 'error');
+                return;
+            }
+
+            // Create event 1 hour from now
+            const startTime = Date.now() + (60 * 60 * 1000);
+
+            const event = {
+                type: 'CALENDAR_EVENT',
+                payload: {
+                    title: 'Quick Meeting',
+                    start: startTime,
+                    duration: 30,
+                    description: 'Quick meeting created via IPC'
+                }
+            };
+
+            try {
+                await window.bridge.send(target, event);
+                addLog(`⚡ Sent quick event to ${target} (in 1 hour)`, 'sent');
             } catch (error) {
                 addLog(`Error: ${error.message}`, 'error');
             }
@@ -279,18 +443,21 @@
                 return;
             }
 
+            const title = document.getElementById('docTitle').value;
+            const url = document.getElementById('docUrl').value;
+
             const doc = {
                 type: 'DOC_SHARE',
                 payload: {
-                    title: 'Q4 Report.pdf',
+                    title: title,
                     size: 1024 * 1024 * 2.5,
-                    url: 'https://example.com/docs/q4-report.pdf'
+                    url: url
                 }
             };
 
             try {
                 await window.bridge.send(target, doc);
-                addLog(`Sent document share to ${target}`, 'sent');
+                addLog(`📄 Sent document "${title}" to ${target}`, 'sent');
             } catch (error) {
                 addLog(`Error: ${error.message}`, 'error');
             }

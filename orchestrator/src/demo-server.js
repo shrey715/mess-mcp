@@ -37,4 +37,5 @@ server.listen(PORT, () => {
     console.log(`Demo applet server running at http://localhost:${PORT}`);
     console.log(`  - Sender: http://localhost:${PORT}/sender.html`);
     console.log(`  - Receiver: http://localhost:${PORT}/receiver.html`);
+    console.log(`  - Calendar: http://localhost:${PORT}/calendar/index.html`);
 });

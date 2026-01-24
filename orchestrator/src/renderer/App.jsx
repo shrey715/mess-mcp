@@ -8,6 +8,14 @@ import EmptyState from './components/EmptyState';
 const defaultApplets = [
     // IPC Demo applets
     {
+        id: 'unified-calendar',
+        name: '📅 Unified Calendar',
+        url: 'http://localhost:3456/calendar/index.html',
+        icon: '📅',
+        color: '#8b5cf6',
+        permissions: ['ipc']
+    },
+    {
         id: 'sender-demo',
         name: '📤 IPC Sender Demo',
         url: 'http://localhost:3456/sender.html',
