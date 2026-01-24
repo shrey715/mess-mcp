@@ -5,7 +5,7 @@
     "main": "src/main/main.js",
     "scripts": {
         "start": "electron .",
-        "dev": "concurrently \"npm run dev:renderer\" \"npm run dev:demo\" \"wait-on http://localhost:5173 && electron .\"",
+        "dev": "concurrently \"npm run dev:renderer\" \"npm run dev:demo\" \"wait-on http://localhost:5173 && electron . --no-sandbox\"",
         "dev:renderer": "vite",
         "dev:demo": "node src/demo-server.js",
         "build": "vite build && electron-builder",

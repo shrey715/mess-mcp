@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LIHA - Lord I Hate Assignments</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div id="app">
+        <header class="header">
+            <div class="header-left">
+                <h1>📚 LIHA</h1>
+                <p class="subtitle">Lord I Hate Assignments</p>
+            </div>
+            <div class="header-right">
+                <button id="btn-sync" class="btn primary">🔄 Sync Moodle</button>
+                <div class="status-indicator">
+                    <span class="status-dot online"></span>
+                    <span id="status-text">Connected</span>
+                </div>
+            </div>
+        </header>
+
+        <main class="main-container">
+            <aside class="sidebar">
+                <div class="section-header">
+                    <h2>Pending Assignments</h2>
+                    <span class="badge" id="assign-count">0</span>
+                </div>
+                <div id="assignment-list" class="assignment-list">
+                    <!-- Assignments will be injected here -->
+                    <div class="loading-state">Fetching your misery...</div>
+                </div>
+            </aside>
+
+            <section class="content-area">
+                <div id="welcome-view" class="empty-state">
+                    <div class="hero-icon">📖</div>
+                    <h2>Study Roadmap</h2>
+                    <p>Select an assignment to see what you need to study from your lectures to solve it.</p>
+                </div>
+
+                <div id="suggestion-view" class="suggestion-view hidden">
+                    <div class="suggestion-header">
+                        <h2 id="selected-title">Assignment Name</h2>
+                        <div class="meta-row">
+                            <span class="meta-item calendar">📅 Due: <span id="selected-date">Tomorrow</span></span>
+                            <span class="meta-item course">🏫 <span id="selected-course">Course Name</span></span>
+                        </div>
+                    </div>
+
+                    <div class="roadmap-container">
+                        <h3>🎯 Knowledge Roadmap</h3>
+                        <p class="roadmap-desc">Based on your lectures, here is what you should study:</p>
+                        
+                        <div id="roadmap-steps" class="roadmap-steps">
+                            <!-- Roadmap steps injected here -->
+                        </div>
+                    </div>
+
+                    <div class="action-bar">
+                        <button class="btn secondary">📎 Open Assignment PDF</button>
+                        <button class="btn accent">💬 Ask LIHA AI</button>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <footer class="footer">
+            <div id="sync-info">Last synced: Never</div>
+            <div id="moodle-info">Moodle: http://10.42.0.159:8085</div>
+        </footer>
+    </div>
+
+    <!-- Background Decoration -->
+    <div class="blob-1"></div>
+    <div class="blob-2"></div>
+
+    <!-- Scripts -->
+    <script src="storage.js"></script>
+    <script src="bridge.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>

@@ -65,12 +65,28 @@ const defaultApplets = [
         permissions: ['ipc']
     },
     {
-        id: 'github',
-        name: 'GitHub',
-        url: 'https://github.com',
-        icon: '🐙',
-        color: '#24292e',
-        permissions: ['ipc']
+        "id": "github",
+        "name": "GitHub",
+        "url": "https://github.com",
+        "icon": "🐙",
+        "color": "#24292e",
+        "permissions": ["ipc"]
+    },
+    {
+        "id": "liha",
+        "name": "LIHA",
+        "url": "http://localhost:3456/liha/index.html",
+        "icon": "📚",
+        "color": "#8b5cf6",
+        "permissions": ["ipc", "notifications"]
+    },
+    {
+        "id": "local-calendar",
+        "name": "Unified Calendar",
+        "url": "http://localhost:3456/calendar/index.html",
+        "icon": "📅",
+        "color": "#22c55e",
+        "permissions": ["ipc", "notifications"]
     }
 ];
 
