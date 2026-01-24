@@ -1,0 +1,86 @@
+[
+    {
+        "id": "google-calendar",
+        "name": "Google Calendar",
+        "url": "https://calendar.google.com",
+        "icon": "📅",
+        "color": "#4285f4",
+        "permissions": [
+            "ipc",
+            "notifications"
+        ]
+    },
+    {
+        "id": "gmail",
+        "name": "Gmail",
+        "url": "https://mail.google.com",
+        "icon": "📧",
+        "color": "#ea4335",
+        "permissions": [
+            "ipc",
+            "notifications"
+        ]
+    },
+    {
+        "id": "slack",
+        "name": "Slack",
+        "url": "https://app.slack.com",
+        "icon": "💬",
+        "color": "#4a154b",
+        "permissions": [
+            "ipc",
+            "notifications"
+        ]
+    },
+    {
+        "id": "notion",
+        "name": "Notion",
+        "url": "https://notion.so",
+        "icon": "📝",
+        "color": "#000000",
+        "permissions": [
+            "ipc"
+        ]
+    },
+    {
+        "id": "github",
+        "name": "GitHub",
+        "url": "https://github.com",
+        "icon": "🐙",
+        "color": "#24292e",
+        "permissions": [
+            "ipc"
+        ]
+    },
+    {
+        "id": "discord",
+        "name": "Discord",
+        "url": "https://discord.com/app",
+        "icon": "🎮",
+        "color": "#5865f2",
+        "permissions": [
+            "ipc",
+            "notifications"
+        ]
+    },
+    {
+        "id": "twitter",
+        "name": "Twitter/X",
+        "url": "https://twitter.com",
+        "icon": "🐦",
+        "color": "#1da1f2",
+        "permissions": [
+            "ipc"
+        ]
+    },
+    {
+        "id": "trello",
+        "name": "Trello",
+        "url": "https://trello.com",
+        "icon": "📋",
+        "color": "#0079bf",
+        "permissions": [
+            "ipc"
+        ]
+    }
+]

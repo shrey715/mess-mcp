@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sender Applet</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: #fff;
+            min-height: 100vh;
+            padding: 24px;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            font-size: 24px;
+            margin-bottom: 8px;
+            color: #6366f1;
+        }
+
+        .subtitle {
+            color: #94a3b8;
+            margin-bottom: 24px;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 16px;
+        }
+
+        .card h2 {
+            font-size: 14px;
+            color: #94a3b8;
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        input,
+        textarea {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            background: rgba(0, 0, 0, 0.3);
+            color: #fff;
+            font-size: 14px;
+            margin-bottom: 12px;
+        }
+
+        input:focus,
+        textarea:focus {
+            outline: none;
+            border-color: #6366f1;
+        }
+
+        textarea {
+            min-height: 100px;
+            resize: vertical;
+        }
+
+        button {
+            background: #6366f1;
+            color: #fff;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+            margin-right: 8px;
+            margin-bottom: 8px;
+        }
+
+        button:hover {
+            background: #818cf8;
+        }
+
+        button.secondary {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        button.secondary:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .log {
+            background: rgba(0, 0, 0, 0.4);
+            border-radius: 8px;
+            padding: 12px;
+            font-family: 'Consolas', monospace;
+            font-size: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .log-entry {
+            padding: 4px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .log-entry.sent {
+            color: #22c55e;
+        }
+
+        .log-entry.received {
+            color: #3b82f6;
+        }
+
+        .log-entry.error {
+            color: #ef4444;
+        }
+
+        .status {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            background: rgba(34, 197, 94, 0.2);
+            border-radius: 20px;
+            font-size: 12px;
+            color: #22c55e;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            background: #22c55e;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.5;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>📤 Sender Applet</h1>
+        <p class="subtitle">Send messages to the Receiver applet via IPC Bridge</p>
+
+        <div class="card">
+            <h2>Connection Status</h2>
+            <div class="status" id="status">
+                <span class="status-dot"></span>
+                <span id="statusText">Checking bridge...</span>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>Send Message</h2>
+            <input type="text" id="targetApplet" placeholder="Target Applet ID (e.g., receiver-demo)"
+                value="receiver-demo">
+            <textarea id="messageContent" placeholder="Enter your message here...">Hello from Sender! 👋</textarea>
+            <button onclick="sendMessage()">Send Message</button>
+            <button class="secondary" onclick="sendCalendarEvent()">Send Calendar Event</button>
+            <button class="secondary" onclick="sendDocShare()">Send Doc Share</button>
+        </div>
+
+        <div class="card">
+            <h2>Message Log</h2>
+            <div class="log" id="log">
+                <div class="log-entry">Waiting for messages...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const log = document.getElementById('log');
+        const statusText = document.getElementById('statusText');
+
+        function addLog(message, type = 'info') {
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            log.appendChild(entry);
+            log.scrollTop = log.scrollHeight;
+        }
+
+        // Check if bridge is available
+        if (window.bridge) {
+            statusText.textContent = 'Bridge connected!';
+            addLog('Bridge API is available', 'sent');
+
+            // Listen for incoming messages
+            window.bridge.onReceive((message, senderId) => {
+                addLog(`From ${senderId}: ${JSON.stringify(message)}`, 'received');
+            });
+
+            // Listen for broadcasts
+            window.bridge.onBroadcast((message) => {
+                addLog(`Broadcast: ${JSON.stringify(message)}`, 'received');
+            });
+        } else {
+            statusText.textContent = 'Bridge not available';
+            document.getElementById('status').style.background = 'rgba(239, 68, 68, 0.2)';
+            document.getElementById('status').style.color = '#ef4444';
+            addLog('Bridge API not available - running outside orchestrator', 'error');
+        }
+
+        async function sendMessage() {
+            const target = document.getElementById('targetApplet').value;
+            const content = document.getElementById('messageContent').value;
+
+            if (!window.bridge) {
+                addLog('Cannot send - bridge not available', 'error');
+                return;
+            }
+
+            try {
+                const result = await window.bridge.send(target, {
+                    type: 'MESSAGE',
+                    payload: { text: content }
+                });
+                addLog(`Sent to ${target}: ${content}`, 'sent');
+            } catch (error) {
+                addLog(`Error: ${error.message}`, 'error');
+            }
+        }
+
+        async function sendCalendarEvent() {
+            const target = document.getElementById('targetApplet').value;
+
+            if (!window.bridge) {
+                addLog('Cannot send - bridge not available', 'error');
+                return;
+            }
+
+            const event = {
+                type: 'CALENDAR_EVENT',
+                payload: {
+                    title: 'Team Meeting',
+                    date: new Date().toISOString(),
+                    duration: 60,
+                    attendees: ['alice@example.com', 'bob@example.com']
+                }
+            };
+
+            try {
+                await window.bridge.send(target, event);
+                addLog(`Sent calendar event to ${target}`, 'sent');
+            } catch (error) {
+                addLog(`Error: ${error.message}`, 'error');
+            }
+        }
+
+        async function sendDocShare() {
+            const target = document.getElementById('targetApplet').value;
+
+            if (!window.bridge) {
+                addLog('Cannot send - bridge not available', 'error');
+                return;
+            }
+
+            const doc = {
+                type: 'DOC_SHARE',
+                payload: {
+                    title: 'Q4 Report.pdf',
+                    size: 1024 * 1024 * 2.5,
+                    url: 'https://example.com/docs/q4-report.pdf'
+                }
+            };
+
+            try {
+                await window.bridge.send(target, doc);
+                addLog(`Sent document share to ${target}`, 'sent');
+            } catch (error) {
+                addLog(`Error: ${error.message}`, 'error');
+            }
+        }
+    </script>
+</body>
+
+</html>

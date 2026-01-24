@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Receiver Applet</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);
+            color: #fff;
+            min-height: 100vh;
+            padding: 24px;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            font-size: 24px;
+            margin-bottom: 8px;
+            color: #22c55e;
+        }
+
+        .subtitle {
+            color: #94a3b8;
+            margin-bottom: 24px;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 16px;
+        }
+
+        .card h2 {
+            font-size: 14px;
+            color: #94a3b8;
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .status {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            background: rgba(34, 197, 94, 0.2);
+            border-radius: 20px;
+            font-size: 12px;
+            color: #22c55e;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            background: #22c55e;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.5;
+            }
+        }
+
+        .messages {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .message {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 12px;
+            padding: 16px;
+            border-left: 4px solid #6366f1;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(-20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        .message.calendar {
+            border-left-color: #f59e0b;
+        }
+
+        .message.doc {
+            border-left-color: #ec4899;
+        }
+
+        .message-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .message-type {
+            font-size: 12px;
+            font-weight: 600;
+            padding: 4px 8px;
+            border-radius: 4px;
+            background: rgba(99, 102, 241, 0.2);
+            color: #818cf8;
+        }
+
+        .message-type.calendar {
+            background: rgba(245, 158, 11, 0.2);
+            color: #fbbf24;
+        }
+
+        .message-type.doc {
+            background: rgba(236, 72, 153, 0.2);
+            color: #f472b6;
+        }
+
+        .message-time {
+            font-size: 11px;
+            color: #64748b;
+        }
+
+        .message-content {
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .message-content pre {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            overflow-x: auto;
+            margin-top: 8px;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #64748b;
+        }
+
+        .empty-state .icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+        }
+
+        button {
+            background: #22c55e;
+            color: #fff;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        button:hover {
+            background: #16a34a;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+            margin-top: 12px;
+        }
+
+        .stat {
+            text-align: center;
+            padding: 12px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+        }
+
+        .stat-value {
+            font-size: 24px;
+            font-weight: 700;
+            color: #22c55e;
+        }
+
+        .stat-label {
+            font-size: 11px;
+            color: #64748b;
+            text-transform: uppercase;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>📥 Receiver Applet</h1>
+        <p class="subtitle">Receives and displays messages from other applets</p>
+
+        <div class="card">
+            <h2>Connection Status</h2>
+            <div class="status" id="status">
+                <span class="status-dot"></span>
+                <span id="statusText">Checking bridge...</span>
+            </div>
+            <div class="stats">
+                <div class="stat">
+                    <div class="stat-value" id="totalMessages">0</div>
+                    <div class="stat-label">Messages</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value" id="totalCalendar">0</div>
+                    <div class="stat-label">Calendar</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value" id="totalDocs">0</div>
+                    <div class="stat-label">Documents</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>Received Messages</h2>
+            <div class="messages" id="messages">
+                <div class="empty-state" id="emptyState">
+                    <div class="icon">📭</div>
+                    <p>No messages received yet</p>
+                    <p style="font-size: 12px; margin-top: 8px;">Send a message from the Sender applet</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>Actions</h2>
+            <button onclick="sendReply()">Send Reply to Sender</button>
+        </div>
+    </div>
+
+    <script>
+        const messagesContainer = document.getElementById('messages');
+        const statusText = document.getElementById('statusText');
+        const emptyState = document.getElementById('emptyState');
+
+        let stats = { messages: 0, calendar: 0, docs: 0 };
+
+        function updateStats() {
+            document.getElementById('totalMessages').textContent = stats.messages;
+            document.getElementById('totalCalendar').textContent = stats.calendar;
+            document.getElementById('totalDocs').textContent = stats.docs;
+        }
+
+        function addMessage(message, senderId) {
+            // Remove empty state
+            if (emptyState) {
+                emptyState.remove();
+            }
+
+            const type = message.type || 'MESSAGE';
+            let typeClass = '';
+
+            if (type === 'CALENDAR_EVENT') {
+                typeClass = 'calendar';
+                stats.calendar++;
+            } else if (type === 'DOC_SHARE') {
+                typeClass = 'doc';
+                stats.docs++;
+            } else {
+                stats.messages++;
+            }
+
+            updateStats();
+
+            const messageEl = document.createElement('div');
+            messageEl.className = `message ${typeClass}`;
+            messageEl.innerHTML = `
+                <div class="message-header">
+                    <span class="message-type ${typeClass}">${type}</span>
+                    <span class="message-time">${new Date().toLocaleTimeString()}</span>
+                </div>
+                <div class="message-content">
+                    <strong>From:</strong> ${senderId}<br>
+                    <pre>${JSON.stringify(message.payload, null, 2)}</pre>
+                </div>
+            `;
+
+            messagesContainer.insertBefore(messageEl, messagesContainer.firstChild);
+        }
+
+        // Check if bridge is available
+        if (window.bridge) {
+            statusText.textContent = 'Bridge connected! Listening...';
+
+            // Listen for incoming messages
+            window.bridge.onReceive((message, senderId) => {
+                console.log('Received message:', message, 'from:', senderId);
+                addMessage(message, senderId);
+            });
+
+            // Listen for broadcasts
+            window.bridge.onBroadcast((message) => {
+                console.log('Received broadcast:', message);
+                addMessage({ type: 'BROADCAST', payload: message }, 'broadcast');
+            });
+        } else {
+            statusText.textContent = 'Bridge not available';
+            document.getElementById('status').style.background = 'rgba(239, 68, 68, 0.2)';
+            document.getElementById('status').style.color = '#ef4444';
+        }
+
+        async function sendReply() {
+            if (!window.bridge) {
+                alert('Bridge not available');
+                return;
+            }
+
+            try {
+                await window.bridge.send('sender-demo', {
+                    type: 'MESSAGE',
+                    payload: { text: 'Thanks for your message! 🎉' }
+                });
+                alert('Reply sent!');
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
+    </script>
+</body>
+
+</html>
