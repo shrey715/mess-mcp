@@ -116,8 +116,8 @@ async def get_mess_rates(meal: str, on: str = Query(None)):
     return await MMSService.get_rates(meal, on)
 
 @router.get("/mess/capacities")
-async def get_mess_capacities(meal: str, on: str = Query(None)):
-    return await MMSService.get_capacities(meal, on)
+async def get_mess_capacities(meal: str, on: str = Query(None), authorization: str = Header(...)):
+    return await MMSService.get_capacities(meal, on, authorization)
 
 # ==================== RATINGS ====================
 

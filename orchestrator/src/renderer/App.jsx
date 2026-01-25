@@ -87,6 +87,14 @@ const defaultApplets = [
         "icon": "📅",
         "color": "#22c55e",
         "permissions": ["ipc", "notifications"]
+    },
+    {
+        "id": "mess-mate",
+        "name": "Mess Mate",
+        "url": "http://localhost:5174",
+        "icon": "🍱",
+        "color": "#EA2264",
+        "permissions": ["ipc", "notifications"]
     }
 ];
 

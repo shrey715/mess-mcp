@@ -3,7 +3,7 @@ const fs = require('fs');
 const path = require('path');
 
 const PORT = 3456;
-const DEMO_DIR = path.join(__dirname, '..', 'demo-applets');
+const DEMO_DIR = path.join(__dirname, '..', 'applets');
 
 const MIME_TYPES = {
     '.html': 'text/html',

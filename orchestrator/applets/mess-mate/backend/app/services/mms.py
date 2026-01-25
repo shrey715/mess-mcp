@@ -112,12 +112,12 @@ class MMSService:
         return await MMSService.make_request("/mess/rates", params=params)
 
     @staticmethod
-    async def get_capacities(meal: str, date: Optional[str] = None):
+    async def get_capacities(meal: str, date: Optional[str] = None, auth_key: Optional[str] = None):
         """GET /mess/capacities - Get mess capacities for a meal."""
         params = {"meal": meal}
         if date:
             params["on"] = date
-        return await MMSService.make_request("/mess/capacities", params=params)
+        return await MMSService.make_request("/mess/capacities", params=params, auth_key=auth_key)
 
     # ==================== REGISTRATIONS ====================
     

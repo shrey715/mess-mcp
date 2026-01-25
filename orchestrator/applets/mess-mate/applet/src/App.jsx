@@ -23,7 +23,7 @@ function AppContent() {
   };
 
   return (
-    <div className="min-h-screen bg-[#FDFBF7] font-sans flex flex-col max-w-md mx-auto shadow-2xl overflow-hidden relative sm:border-x sm:border-gray-200">
+    <div className="min-h-screen bg-[#FDFBF7] font-sans flex flex-col w-full max-w-md md:max-w-2xl lg:max-w-5xl mx-auto shadow-2xl overflow-hidden relative sm:border-x sm:border-gray-200 transition-all duration-300">
 
       {/* Header - Minimal & Clean */}
       <header className="h-16 px-6 flex items-center justify-between bg-white/80 backdrop-blur-md sticky top-0 z-30 border-b border-gray-100">
@@ -53,7 +53,7 @@ function AppContent() {
       </header>
 
       {/* Main Content */}
-      <main className="flex-1 overflow-y-auto pb-28 px-4 pt-6 scrollbar-hide">
+      <main className="flex-1 overflow-y-auto pb-28 px-4 md:px-8 pt-6 scrollbar-hide">
         {activeTab === 'home' && <HomeView user={user} setActiveTab={setActiveTab} />}
         {activeTab === 'menu' && <Dashboard />}
         {activeTab === 'calendar' && <MonthCalendarView />}
@@ -63,8 +63,8 @@ function AppContent() {
       </main>
 
       {/* Floating Bottom Nav - "Island" Style */}
-      <div className="fixed bottom-6 left-0 right-0 z-40 px-6 max-w-md mx-auto">
-        <nav className="bg-white/90 backdrop-blur-xl rounded-2xl shadow-[0_8px_30px_rgba(13,10,100,0.1)] border border-white/50 p-2 flex justify-between items-center ring-1 ring-gray-100">
+      <div className="fixed bottom-6 left-0 right-0 z-40 px-6 pointer-events-none flex justify-center">
+        <nav className="bg-white/90 backdrop-blur-xl rounded-2xl shadow-[0_8px_30px_rgba(13,10,100,0.1)] border border-white/50 p-2 flex justify-between items-center ring-1 ring-gray-100 pointer-events-auto w-full max-w-md">
           <NavBtn icon={Home} label="Home" active={activeTab === 'home'} onClick={() => setActiveTab('home')} />
           <NavBtn icon={Utensils} label="Menu" active={activeTab === 'menu'} onClick={() => setActiveTab('menu')} />
           <NavBtn icon={Calendar} label="Plan" active={activeTab === 'calendar'} onClick={() => setActiveTab('calendar')} />

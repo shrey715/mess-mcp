@@ -220,7 +220,7 @@ const Dashboard = () => {
             </div>
 
             {/* Menu List */}
-            <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {processedMenus.map((m) => (
                     <MenuCard
                         key={m.messId}
@@ -243,7 +243,7 @@ const Dashboard = () => {
                 ))}
 
                 {processedMenus.length === 0 && (
-                    <div className="flex flex-col items-center justify-center py-16 bg-white rounded-3xl border border-dashed border-gray-200 text-center">
+                    <div className="col-span-full flex flex-col items-center justify-center py-16 bg-white rounded-3xl border border-dashed border-gray-200 text-center">
                         <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mb-4">
                             <Utensils className="text-gray-300" size={24} />
                         </div>

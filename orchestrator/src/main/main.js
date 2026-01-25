@@ -198,7 +198,24 @@ async function restoreApplets() {
     }
     appletsRestored = true;
 
-    const savedApplets = store.get('applets', []);
+    let savedApplets = store.get('applets', []);
+
+    // Auto-seed Mess Mate (Integration)
+    const messMateManifest = {
+        id: 'mess-mate',
+        name: 'Mess Mate',
+        url: 'http://localhost:5174',
+        icon: '🍱',
+        color: '#EA2264',
+        permissions: ['ipc', 'notifications']
+    };
+
+    if (!savedApplets.find(a => a.id === messMateManifest.id)) {
+        console.log('Auto-seeding Mess Mate applet...');
+        savedApplets.push(messMateManifest);
+        store.set('applets', savedApplets);
+    }
+
     console.log(`Restoring ${savedApplets.length} applets from store:`, savedApplets.map(a => a.id));
 
     if (savedApplets.length === 0) {
