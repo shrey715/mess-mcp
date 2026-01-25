@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import * as LucideIcons from 'lucide-react';
 import Header from './components/Header';
 import Sidebar from './components/Sidebar';
 import AddAppletModal from './components/AddAppletModal';
@@ -27,7 +28,7 @@ const defaultApplets = [
         id: 'mess-mate',
         name: 'Mess Mate',
         url: 'http://localhost:5174',
-        icon: '🍽️',
+        icon: 'UtensilsCrossed',
         color: '#EA2264',
         permissions: ['ipc', 'notifications']
     },
@@ -35,7 +36,7 @@ const defaultApplets = [
         id: 'unified-calendar',
         name: 'Unified Calendar',
         url: 'http://localhost:3456/calendar/index.html',
-        icon: '📅',
+        icon: 'Calendar',
         color: '#22c55e',
         permissions: ['ipc', 'notifications']
     },
@@ -237,8 +238,25 @@ function App() {
                         <EmptyState onAddApplet={openModal} />
                     )}
 
-                    {/* This area is where Electron renders the WebContentsView */}
-                    {/* The views are positioned absolutely by ViewManager */}
+                    {/* Placeholder for loading/hibernated applets */}
+                    {activeApplet && activeApplet.state !== 'active' && (
+                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none select-none bg-shell-bg z-0">
+                            <div className="flex flex-col items-center gap-6 text-zinc-500 animate-pulse">
+                                {(() => {
+                                    const Icon = LucideIcons[activeApplet.manifest?.icon] || LucideIcons.Package;
+                                    return <Icon size={80} strokeWidth={1} className="filter drop-shadow-2xl opacity-50 contrast-125" />;
+                                })()}
+                                <div className="flex flex-col items-center gap-1">
+                                    <span className="text-sm font-bold tracking-[0.2em] uppercase text-zinc-600">
+                                        {activeApplet.state === 'loading' ? 'Loading' : 'Restoring'}
+                                    </span>
+                                    <span className="text-xs text-zinc-700">
+                                        {activeApplet.manifest?.name}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
 
