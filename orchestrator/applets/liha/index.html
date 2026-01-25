@@ -1,12 +1,14 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>LIHA - Lord I Hate Assignments</title>
     <link rel="stylesheet" href="style.css">
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 </head>
+
 <body>
     <div id="app">
         <header class="header">
@@ -15,6 +17,9 @@
                 <p class="subtitle">Lord I Hate Assignments</p>
             </div>
             <div class="header-right">
+                <div id="role-switcher" class="role-switcher">
+                    <!-- Role dropdown will be injected by JS -->
+                </div>
                 <button id="btn-sync" class="btn primary">🔄 Sync Moodle</button>
                 <div class="status-indicator">
                     <span class="status-dot online"></span>
@@ -54,7 +59,7 @@
                     <div class="roadmap-container">
                         <h3>🎯 Knowledge Roadmap</h3>
                         <p class="roadmap-desc">Based on your lectures, here is what you should study:</p>
-                        
+
                         <div id="roadmap-steps" class="roadmap-steps">
                             <!-- Roadmap steps injected here -->
                         </div>
@@ -83,4 +88,5 @@
     <script src="bridge.js"></script>
     <script src="app.js"></script>
 </body>
+
 </html>

@@ -16,13 +16,20 @@ const MIME_TYPES = {
 };
 
 const server = http.createServer((req, res) => {
-    let filePath = path.join(DEMO_DIR, req.url === '/' ? 'index.html' : req.url);
+    // Handle directory paths by appending index.html
+    let requestPath = req.url;
+    if (requestPath === '/' || requestPath.endsWith('/')) {
+        requestPath = requestPath + 'index.html';
+    }
+
+    let filePath = path.join(DEMO_DIR, requestPath);
 
     const ext = path.extname(filePath);
     const contentType = MIME_TYPES[ext] || 'application/octet-stream';
 
     fs.readFile(filePath, (err, data) => {
         if (err) {
+            console.log(`[demo-server] 404: ${req.url} -> ${filePath}`);
             res.writeHead(404);
             res.end('File not found');
             return;

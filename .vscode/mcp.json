@@ -12,17 +12,8 @@
             "url": "http://localhost:8000/mcp"
         },
         "moodle_mcp": {
-            "command": "npx",
-            "args": [
-                "-y",
-                "tsx",
-                "src/server.ts"
-            ],
-            "cwd": "/home/vishak/hackiiit'26/OnlyApps/mcp_servers/moodle_mcp",
-            "env": {
-                "MOODLE_URL": "http://localhost:8085",
-                "MOODLE_TOKEN": "6e46f93f5f12b5bf476e7f2b8e7d6ba3"
-            }
+            "type": "http",
+            "url": "http://localhost:3001/mcp"
         }
     },
     "inputs": []

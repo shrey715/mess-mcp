@@ -30,7 +30,7 @@ class StudySuggester:
     def __init__(self):
         self.model = SentenceTransformer("all-MiniLM-L6-v2")
         self.chroma = chromadb.PersistentClient(path=DB_PATH)
-        self.collection = self.chroma.get_collection(name=COLLECTION_NAME)
+        self.collection = self.chroma.get_or_create_collection(name=COLLECTION_NAME)
         self.neo4j = GraphDatabase.driver(NEO4J_URI, auth=(NEO4J_USER, NEO4J_PASSWORD))
 
     def suggest(self, assignment_text: str, n_results: int = 3):

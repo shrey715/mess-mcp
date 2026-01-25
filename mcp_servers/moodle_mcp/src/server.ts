@@ -5,20 +5,46 @@ import {
     CallToolRequestSchema,
     ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
-import { MoodleMCPClient } from "./index.js";
+import { MoodleMCPClient, TokensConfig, RoleConfig } from "./index.js";
+import { readFileSync, existsSync } from 'fs';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
 
-/**
- * Moodle MCP Stdio Server
- * 
- * This server acts as a bridge between Claude (stdio) and the Moodle MCP API (HTTP).
- */
-const MOODLE_URL = process.env.MOODLE_URL || "http://localhost:8085";
-const MOODLE_TOKEN = process.env.MOODLE_TOKEN || "6e46f93f5f12b5bf476e7f2b8e7d6ba3";
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const TOKENS_FILE = join(__dirname, '..', 'tokens.json');
 
-const client = new MoodleMCPClient({
-    baseUrl: `${MOODLE_URL}/webservice/mcp/server.php`,
-    token: MOODLE_TOKEN,
-});
+function loadTokens(): TokensConfig {
+    if (!existsSync(TOKENS_FILE)) {
+        // Fallback or error
+        process.stderr.write(`[ERROR] tokens.json not found at ${TOKENS_FILE}\n`);
+        return {
+            moodleUrl: process.env.MOODLE_URL || "http://localhost:8085",
+            roles: {
+                admin: {
+                    token: process.env.MOODLE_TOKEN || "6e46f93f5f12b5bf476e7f2b8e7d6ba3",
+                    userId: 2,
+                    name: "Admin User",
+                    description: "Site Administrator"
+                }
+            },
+            defaultRole: "admin"
+        };
+    }
+    const content = readFileSync(TOKENS_FILE, 'utf-8');
+    return JSON.parse(content);
+}
+
+const tokensConfig = loadTokens();
+let currentRole = tokensConfig.defaultRole;
+
+function getClient() {
+    const tokens = loadTokens();
+    const roleConfig = tokens.roles[currentRole];
+    return new MoodleMCPClient({
+        baseUrl: `${tokens.moodleUrl}/webservice/mcp/server.php`,
+        token: roleConfig.token,
+    });
+}
 
 const server = new Server(
     {
@@ -40,8 +66,29 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         tools: [
             {
                 name: "get_courses",
-                description: "Get all enrolled courses from Moodle",
+                description: "Get all enrolled courses. To see roles first, you can use list_roles.",
                 inputSchema: { type: "object", properties: {} },
+            },
+            {
+                name: "list_roles",
+                description: "List all available user roles (admin, teacher, student).",
+                inputSchema: { type: "object", properties: {} },
+            },
+            {
+                name: "get_current_role",
+                description: "Get the current active role/user.",
+                inputSchema: { type: "object", properties: {} },
+            },
+            {
+                name: "switch_role",
+                description: "Switch to a different user role.",
+                inputSchema: {
+                    type: "object",
+                    properties: {
+                        role: { type: "string", description: "Role ID to switch to (e.g., 'admin', 'kumar', 'student1')" },
+                    },
+                    required: ["role"],
+                },
             },
             {
                 name: "get_assignments",
@@ -89,16 +136,65 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     try {
         switch (name) {
             case "get_courses": {
-                const courses = await client.getCourses();
+                const courses = await getClient().getCourses();
                 return {
                     content: [{ type: "text", text: JSON.stringify(courses, null, 2) }],
+                };
+            }
+
+            case "list_roles": {
+                const roles = Object.entries(tokensConfig.roles).map(([id, config]) => {
+                    const roleConfig = config as RoleConfig;
+                    return {
+                        id,
+                        name: roleConfig.name,
+                        description: roleConfig.description || '',
+                        isCurrent: id === currentRole,
+                    };
+                });
+                return {
+                    content: [{
+                        type: "text",
+                        text: `Available roles:\n${roles.map(r => `- ${r.id}: ${r.name}${r.isCurrent ? ' (CURRENT)' : ''}`).join('\n')}\n\nUse switch_role to change.`
+                    }]
+                };
+            }
+
+            case "get_current_role": {
+                const roleConfig = tokensConfig.roles[currentRole];
+                return {
+                    content: [{
+                        type: "text",
+                        text: `Currently authenticated as: ${roleConfig.name} (${currentRole})\nUser ID: ${roleConfig.userId}`
+                    }]
+                };
+            }
+
+            case "switch_role": {
+                const role = args?.role as string;
+                if (!tokensConfig.roles[role]) {
+                    return {
+                        content: [{
+                            type: "text",
+                            text: `Role "${role}" not found. Available: ${Object.keys(tokensConfig.roles).join(', ')}`
+                        }],
+                        isError: true
+                    };
+                }
+                currentRole = role;
+                const roleConfig = tokensConfig.roles[role];
+                return {
+                    content: [{
+                        type: "text",
+                        text: `✅ Switched to: ${roleConfig.name} (${role})\nYou are now viewing Moodle as this user.`
+                    }]
                 };
             }
 
             case "get_assignments": {
                 const courseIds = args?.courseIds as number[];
                 try {
-                    const assignments = await client.getAssignments(courseIds);
+                    const assignments = await getClient().getAssignments(courseIds);
                     process.stderr.write(`[DEBUG] Got ${assignments.length} assignments\n`);
                     return {
                         content: [{ type: "text", text: JSON.stringify(assignments, null, 2) }],
@@ -111,7 +207,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
             case "get_course_materials": {
                 const courseId = args?.courseId as number;
-                const materials = await client.getCourseMaterials(courseId);
+                const materials = await getClient().getCourseMaterials(courseId);
                 return {
                     content: [{ type: "text", text: JSON.stringify(materials, null, 2) }],
                 };

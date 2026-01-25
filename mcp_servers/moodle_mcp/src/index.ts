@@ -1,5 +1,5 @@
 import axios, { AxiosInstance } from 'axios';
-import { MoodleConfig, Course, Assignment, CourseSection, ModuleContent } from './types';
+import { MoodleConfig, Course, Assignment, CourseSection, ModuleContent, TokensConfig, RoleConfig } from './types.js';
 
 /**
  * Moodle MCP Client
@@ -71,14 +71,14 @@ export class MoodleMCPClient {
 
     async getAssignments(courseIds: number[]): Promise<any[]> {
         const url = `${this.baseUrl}/webservice/rest/server.php`;
-        
+
         // Build query string manually to handle array parameters correctly
         const queryParts = [
             `wstoken=${encodeURIComponent(this.token)}`,
             `wsfunction=mod_assign_get_assignments`,
             `moodlewsrestformat=json`,
         ];
-        
+
         // Add courseids as array parameters
         courseIds.forEach((id, i) => {
             queryParts.push(`courseids[${i}]=${id}`);
@@ -138,4 +138,4 @@ export class MoodleMCPClient {
     }
 }
 
-export * from './types';
+export * from './types.js';

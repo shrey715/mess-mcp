@@ -82,3 +82,15 @@ export interface ChunkMetadata {
     wordCount: number;
     charCount: number;
 }
+export interface RoleConfig {
+    token: string;
+    userId: number;
+    name: string;
+    description?: string;
+}
+
+export interface TokensConfig {
+    moodleUrl: string;
+    roles: Record<string, RoleConfig>;
+    defaultRole: string;
+}
