@@ -17,10 +17,12 @@ body,
 }
 
 body {
-    background-color: #0f0f0f;
-    color: #ffffff;
+    background-color: #09090b;
+    color: #e4e4e7;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
 }
 
 /* Custom scrollbar */

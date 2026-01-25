@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import * as LucideIcons from 'lucide-react';
 
 function Sidebar({
     applets,
@@ -22,82 +23,76 @@ function Sidebar({
 
     const closeContextMenu = () => setContextMenu(null);
 
+    const renderIcon = (iconName, isActive) => {
+        const Icon = LucideIcons[iconName];
+        if (Icon) {
+            return <Icon
+                size={24}
+                strokeWidth={isActive ? 2 : 1.5}
+                className={`transition-all duration-300 ease-snappy ${isActive ? 'scale-100' : 'scale-90'}`}
+            />;
+        }
+        return <span className={`text-2xl transition-all duration-300 ease-snappy ${isActive ? 'scale-100' : 'scale-90'}`}>{iconName || '📦'}</span>;
+    };
+
     return (
         <>
             <aside
                 className={`
-          ${collapsed ? 'w-0 opacity-0' : 'w-16'} 
-          bg-shell-sidebar border-r border-zinc-800 
-          flex flex-col items-center py-3 gap-2
-          transition-all duration-200 ease-out overflow-hidden
+          ${collapsed ? 'w-0 opacity-0' : 'w-[72px]'} 
+          bg-shell-sidebar border-r border-white/5
+          flex flex-col items-center py-4 gap-4
+          transition-all duration-300 ease-snappy
+          z-20
         `}
             >
                 {/* Applet Icons */}
-                <div className="flex-1 flex flex-col items-center gap-2 overflow-y-auto">
+                <div className="flex-1 flex flex-col items-center gap-3 w-full overflow-y-auto overflow-x-hidden no-scrollbar">
                     {applets.map((applet, index) => (
-                        <div key={applet.id} className="relative group">
+                        <div key={applet.id} className="relative group flex justify-center w-full px-3">
+                            {/* Active Indicator (Dot) */}
+                            <div
+                                className={`
+                                    absolute -left-[1px] top-1/2 -translate-y-1/2 
+                                    w-1 h-6 bg-accent rounded-r-sm
+                                    transition-all duration-300 ease-snappy
+                                    ${activeAppletId === applet.id ? 'opacity-100 scale-y-100' : 'opacity-0 scale-y-0'}
+                                `}
+                            />
+
                             <button
                                 onClick={() => onSwitchApplet(applet.id)}
                                 onContextMenu={(e) => handleContextMenu(e, applet)}
                                 className={`
-                relative w-11 h-11 rounded-xl flex items-center justify-center
-                transition-all duration-150 ease-out tooltip
+                relative w-12 h-12 flex items-center justify-center
+                transition-all duration-200 ease-snappy
+                hover:scale-105 active:scale-95
                 ${activeAppletId === applet.id
-                                        ? 'bg-shell-active ring-2 ring-accent shadow-lg shadow-accent/20'
-                                        : 'bg-zinc-800/50 hover:bg-shell-hover'
+                                        ? 'bg-accent text-white shadow-lg shadow-accent/20 rounded-xl'
+                                        : 'bg-white/5 text-zinc-400 hover:bg-white/10 hover:text-zinc-100 rounded-xl'
                                     }
-                ${applet.state === 'hibernated' ? 'opacity-60' : ''}
+                ${applet.state === 'hibernated' ? 'opacity-40 grayscale' : ''}
+                border border-transparent
+                ${activeAppletId === applet.id ? 'border-accent/50' : 'hover:border-white/5'}
               `}
                                 data-tooltip={`${applet.manifest?.name || applet.id} (Ctrl+${index + 1})`}
-                                style={{
-                                    '--applet-color': applet.manifest?.color || '#6366f1'
-                                }}
                             >
                                 {/* Applet Icon */}
-                                <span className="text-xl">
-                                    {applet.manifest?.icon || '📦'}
-                                </span>
-
-                                {/* Active Indicator */}
-                                {activeAppletId === applet.id && (
-                                    <div
-                                        className="absolute -left-1 top-1/2 -translate-y-1/2 w-1 h-6 rounded-r-full bg-accent"
-                                    />
-                                )}
+                                {renderIcon(applet.manifest?.icon, activeAppletId === applet.id)}
 
                                 {/* Hibernation Indicator */}
                                 {applet.state === 'hibernated' && (
-                                    <div className="absolute -top-1 -right-1 w-3 h-3 bg-amber-500 rounded-full border-2 border-shell-sidebar">
-                                        <span className="absolute inset-0 flex items-center justify-center text-[6px]">💤</span>
+                                    <div className="absolute -top-1 -right-1 w-3 h-3 bg-shell-sidebar rounded-full flex items-center justify-center border border-white/10">
+                                        <div className="w-1.5 h-1.5 bg-amber-500 rounded-full" />
                                     </div>
                                 )}
 
-                                {/* Notification Badge (placeholder) */}
+                                {/* Notification Badge */}
                                 {applet.manifest?.hasNotification && (
-                                    <div className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full flex items-center justify-center">
-                                        <span className="text-[10px] font-bold text-white">3</span>
+                                    <div className="absolute -top-1 -right-1 w-4 h-4 bg-rose-500 rounded-full flex items-center justify-center border-2 border-shell-sidebar text-[9px] font-bold text-white">
+                                        !
                                     </div>
                                 )}
-                            </button>
-
-                            {/* Remove button - appears on hover */}
-                            <button
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    onRemoveApplet(applet.id);
-                                }}
-                                className="
-                                absolute -top-1 -right-1 w-4 h-4 
-                                bg-red-500 hover:bg-red-400 
-                                rounded-full flex items-center justify-center
-                                opacity-0 group-hover:opacity-100
-                                transition-opacity duration-150
-                                text-white text-xs font-bold
-                                shadow-lg
-                            "
-                                title="Remove applet"
-                            >
-                                ×
                             </button>
                         </div>
                     ))}
@@ -107,16 +102,16 @@ function Sidebar({
                 <button
                     onClick={onAddApplet}
                     className="
-            w-11 h-11 rounded-xl bg-zinc-800/30 
+            w-12 h-12 rounded-xl bg-transparent 
             flex items-center justify-center
-            text-zinc-500 hover:text-zinc-300 hover:bg-shell-hover
-            transition-all duration-150 border border-dashed border-zinc-700
-            hover:border-accent hover:text-accent
+            text-zinc-600 hover:text-white hover:bg-white/5
+            transition-all duration-200 ease-snappy border border-zinc-800 hover:border-white/10
+            active:scale-95
           "
                     title="Add Applet"
                 >
                     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4v16m8-8H4" />
                     </svg>
                 </button>
             </aside>
@@ -129,21 +124,24 @@ function Sidebar({
                         onClick={closeContextMenu}
                     />
                     <div
-                        className="fixed z-50 bg-zinc-900 border border-zinc-700 rounded-lg shadow-xl py-1 min-w-[160px] animate-fadeIn"
-                        style={{ left: contextMenu.x, top: contextMenu.y }}
+                        className="fixed z-50 bg-zinc-900 border border-white/10 rounded-lg shadow-2xl py-1 w-48 animate-in fade-in zoom-in-95 duration-100 ease-out origin-top-left"
+                        style={{ top: contextMenu.y, left: contextMenu.x + 10 }}
                     >
+                        <div className="px-2 py-1.5 border-b border-white/5 mb-1 bg-white/5 rounded-t-lg mx-[-1px] mt-[-1px]">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 pl-2">
+                                {contextMenu.applet.manifest?.name || 'Applet'}
+                            </span>
+                        </div>
+
                         <button
                             onClick={() => {
                                 onSwitchApplet(contextMenu.applet.id);
                                 closeContextMenu();
                             }}
-                            className="w-full px-3 py-2 text-left text-sm text-zinc-300 hover:bg-shell-hover flex items-center gap-2"
+                            className="w-full px-3 py-2 text-left text-sm text-zinc-300 hover:bg-accent hover:text-white flex items-center gap-2 transition-colors group"
                         >
-                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                            </svg>
-                            Open
+                            <LucideIcons.ExternalLink size={14} className="text-zinc-500 group-hover:text-white transition-colors" />
+                            <span>Open</span>
                         </button>
 
                         {contextMenu.applet.state === 'active' ? (
@@ -152,12 +150,10 @@ function Sidebar({
                                     onHibernateApplet(contextMenu.applet.id);
                                     closeContextMenu();
                                 }}
-                                className="w-full px-3 py-2 text-left text-sm text-zinc-300 hover:bg-shell-hover flex items-center gap-2"
+                                className="w-full px-3 py-2 text-left text-sm text-zinc-300 hover:bg-accent hover:text-white flex items-center gap-2 transition-colors group"
                             >
-                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
-                                </svg>
-                                Hibernate
+                                <LucideIcons.Moon size={14} className="text-zinc-500 group-hover:text-white transition-colors" />
+                                <span>Hibernate</span>
                             </button>
                         ) : (
                             <button
@@ -165,28 +161,24 @@ function Sidebar({
                                     onSwitchApplet(contextMenu.applet.id);
                                     closeContextMenu();
                                 }}
-                                className="w-full px-3 py-2 text-left text-sm text-zinc-300 hover:bg-shell-hover flex items-center gap-2"
+                                className="w-full px-3 py-2 text-left text-sm text-zinc-300 hover:bg-accent hover:text-white flex items-center gap-2 transition-colors group"
                             >
-                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707" />
-                                </svg>
-                                Wake Up
+                                <LucideIcons.Sun size={14} className="text-zinc-500 group-hover:text-white transition-colors" />
+                                <span>Wake Up</span>
                             </button>
                         )}
 
-                        <div className="h-px bg-zinc-700 my-1" />
+                        <div className="h-px bg-white/5 my-1 mx-2" />
 
                         <button
                             onClick={() => {
                                 onRemoveApplet(contextMenu.applet.id);
                                 closeContextMenu();
                             }}
-                            className="w-full px-3 py-2 text-left text-sm text-red-400 hover:bg-red-500/10 flex items-center gap-2"
+                            className="w-full px-3 py-2 text-left text-sm text-red-400 hover:bg-red-500 hover:text-white flex items-center gap-2 transition-colors group"
                         >
-                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
-                            Remove
+                            <LucideIcons.Trash2 size={14} className="text-red-400 group-hover:text-white transition-colors" />
+                            <span>Remove</span>
                         </button>
                     </div>
                 </>

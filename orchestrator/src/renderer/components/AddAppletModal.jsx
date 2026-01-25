@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import * as LucideIcons from 'lucide-react';
 
 function AddAppletModal({ defaultApplets, loadedAppletIds, onLoad, onClose, loading }) {
     const [customUrl, setCustomUrl] = useState('');
@@ -13,13 +14,19 @@ function AddAppletModal({ defaultApplets, loadedAppletIds, onLoad, onClose, load
             id: customName.toLowerCase().replace(/\s+/g, '-') || `custom-${Date.now()}`,
             name: customName || 'Custom App',
             url: customUrl.startsWith('http') ? customUrl : `https://${customUrl}`,
-            icon: '🌐',
+            icon: 'Globe',
             color: '#6366f1',
             permissions: ['ipc']
         };
 
         console.log('Calling onLoad with manifest:', manifest);
         onLoad(manifest);
+    };
+
+    const renderIcon = (iconName) => {
+        const Icon = LucideIcons[iconName];
+        if (Icon) return <Icon size={24} />;
+        return <span className="text-xl">{iconName || '🌐'}</span>;
     };
 
     const handleGalleryClick = (applet) => {
@@ -93,10 +100,10 @@ function AddAppletModal({ defaultApplets, loadedAppletIds, onLoad, onClose, load
                     "
                                     >
                                         <span
-                                            className="w-10 h-10 rounded-lg flex items-center justify-center text-xl"
+                                            className="w-10 h-10 rounded-lg flex items-center justify-center text-zinc-200"
                                             style={{ backgroundColor: applet.color + '20' }}
                                         >
-                                            {applet.icon}
+                                            {renderIcon(applet.icon)}
                                         </span>
                                         <span className="text-sm font-medium text-zinc-200 text-left">
                                             {applet.name}

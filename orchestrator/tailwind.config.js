@@ -6,15 +6,18 @@ module.exports = {
     theme: {
         extend: {
             colors: {
-                'shell-bg': '#0f0f0f',
-                'shell-sidebar': '#1a1a1a',
-                'shell-active': '#2d2d2d',
-                'shell-hover': '#252525',
+                'shell-bg': '#09090b', // Zinc 950
+                'shell-sidebar': '#18181b', // Zinc 900
+                'shell-active': '#27272a', // Zinc 800
+                'shell-hover': '#27272a', // Zinc 800
                 'accent': '#6366f1',
-                'accent-hover': '#818cf8'
+                'border-subtle': '#27272a'
             },
             fontFamily: {
                 sans: ['Inter', 'system-ui', 'sans-serif']
+            },
+            transitionTimingFunction: {
+                'snappy': 'cubic-bezier(0.2, 0, 0, 1)'
             }
         }
     },

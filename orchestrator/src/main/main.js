@@ -205,7 +205,7 @@ async function restoreApplets() {
         id: 'mess-mate',
         name: 'Mess Mate',
         url: 'http://localhost:5174',
-        icon: '🍱',
+        icon: 'UtensilsCrossed',
         color: '#EA2264',
         permissions: ['ipc', 'notifications']
     };

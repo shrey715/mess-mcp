@@ -11,7 +11,7 @@ class ViewManager {
         this.mainWindow = mainWindow;
         this.views = new Map(); // Map<appletId, { view, manifest, state }>
         this.activeAppletId = null;
-        this.sidebarWidth = 64;
+        this.sidebarWidth = 72;
         this.headerHeight = 40;
 
         // Listen for window resize to update view bounds
@@ -213,7 +213,7 @@ class ViewManager {
 
         this.mainWindow.addBrowserView(view);
         appletData.view = view;
-        appletData.state = 'active';
+        appletData.state = 'restoring';
 
         try {
             await view.webContents.loadURL(appletData.manifest.url);
@@ -229,7 +229,19 @@ class ViewManager {
             }
 
             this.startMemoryMonitoring(appletId);
+            this.startMemoryMonitoring(appletId);
             console.log(`Applet ${appletId} restored`);
+
+            appletData.state = 'active';
+
+            // If this is the active applet, show it
+            if (this.activeAppletId === appletId) {
+                this.updateActiveBounds();
+            }
+
+            // Notify renderer
+            this.mainWindow.webContents.send('applet:restored', appletId);
+
             return { success: true };
         } catch (error) {
             console.error(`Failed to restore applet ${appletId}:`, error);
