@@ -48,6 +48,7 @@ function loadTokens(): TokensConfig {
 // State
 let tokensConfig = loadTokens();
 let currentRole = tokensConfig.defaultRole;
+let pendingCalendarEvents: any[] = []; // Stores events for calendar sync
 
 function getCurrentClient(): MoodleMCPClient {
     const roleConfig = tokensConfig.roles[currentRole];
@@ -162,6 +163,63 @@ app.get('/api/site-info', async (req: Request, res: Response) => {
     }
 });
 
+// ============ Calendar Integration Endpoints ============
+
+// Get pending calendar events (for calendar applet to fetch)
+app.get('/api/calendar-events', async (req: Request, res: Response) => {
+    try {
+        const events = [...pendingCalendarEvents];
+        res.json({ 
+            events,
+            count: events.length,
+            syncedAt: new Date().toISOString()
+        });
+    } catch (error: any) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Sync assignments to calendar events (REST endpoint for direct calls)
+app.post('/api/sync-to-calendar', async (req: Request, res: Response) => {
+    try {
+        const { courseIds } = req.body;
+        const client = getCurrentClient();
+        
+        let ids = courseIds;
+        if (!ids || ids.length === 0) {
+            const courses = await client.getCourses();
+            ids = courses.map((c: any) => c.id);
+        }
+        
+        const assignments = await client.getAssignments(ids);
+        const now = Math.floor(Date.now() / 1000);
+        
+        const calendarEvents = assignments
+            .filter((a: any) => a.duedate > now)
+            .map((a: any) => ({
+                id: `moodle-assign-${a.id}`,
+                title: `📚 ${a.courseShortname || a.courseName}: ${a.name}`,
+                start: a.duedate * 1000,
+                end: a.duedate * 1000 + 3600000,
+                description: a.intro?.replace(/<[^>]*>/g, '') || 'Assignment deadline',
+                location: 'Moodle LMS',
+                source: 'moodle',
+                courseId: a.course,
+                courseName: a.courseName || a.courseShortname,
+            }));
+        
+        pendingCalendarEvents = calendarEvents;
+        
+        res.json({ 
+            success: true,
+            events: calendarEvents,
+            count: calendarEvents.length
+        });
+    } catch (error: any) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // ============ MCP Streamable HTTP Endpoint ============
 
 // Store active transports and servers for sessions
@@ -241,6 +299,49 @@ function createMCPServer(): Server {
                     required: ['question'],
                 },
             },
+            // ===== Calendar Integration Tools =====
+            {
+                name: 'sync_assignments_to_calendar',
+                description: 'Fetch all assignment deadlines from Moodle and sync them to the calendar. Returns the events that were synced.',
+                inputSchema: {
+                    type: 'object',
+                    properties: {
+                        courseIds: { 
+                            type: 'array', 
+                            items: { type: 'number' },
+                            description: 'Optional: specific course IDs to sync. If not provided, syncs all courses.'
+                        },
+                    },
+                },
+            },
+            {
+                name: 'get_assignment_calendar_events',
+                description: 'Fetch all assignment deadlines from Moodle and sync them to the calendar. Returns the events that were synced.',
+                inputSchema: {
+                    type: 'object',
+                    properties: {
+                        courseIds: { 
+                            type: 'array', 
+                            items: { type: 'number' },
+                            description: 'Optional: specific course IDs to sync. If not provided, syncs all courses.'
+                        },
+                    },
+                },
+            },
+            {
+                name: 'get_assignment_calendar_events',
+                description: 'Get assignment deadlines formatted as calendar events without syncing. Useful for previewing what would be added.',
+                inputSchema: {
+                    type: 'object',
+                    properties: {
+                        courseIds: { 
+                            type: 'array', 
+                            items: { type: 'number' },
+                            description: 'Optional: specific course IDs. If not provided, gets all courses.'
+                        },
+                    },
+                },
+            },
         ],
     }));
 
@@ -318,6 +419,80 @@ function createMCPServer(): Server {
                     const scriptPath = join(__dirname, '..', 'suggest_study.py');
                     const result = execSync(`python3 "${scriptPath}" "${question.replace(/"/g, '\\"')}"`).toString();
                     return { content: [{ type: 'text', text: result }] };
+                }
+                // ===== Calendar Integration Tools =====
+                case 'get_assignment_calendar_events': {
+                    const client = getCurrentClient();
+                    let courseIds = args?.courseIds as number[] | undefined;
+                    
+                    if (!courseIds || courseIds.length === 0) {
+                        const courses = await client.getCourses();
+                        courseIds = courses.map((c: any) => c.id);
+                    }
+                    
+                    const assignments = await client.getAssignments(courseIds);
+                    const now = Math.floor(Date.now() / 1000);
+                    
+                    const calendarEvents = assignments
+                        .filter((a: any) => a.duedate > now)
+                        .map((a: any) => ({
+                            id: `moodle-assign-${a.id}`,
+                            title: `📚 ${a.courseShortname || a.courseName}: ${a.name}`,
+                            start: a.duedate * 1000,
+                            end: a.duedate * 1000 + 3600000,
+                            description: a.intro?.replace(/<[^>]*>/g, '') || 'Assignment deadline',
+                            location: 'Moodle LMS',
+                            source: 'moodle',
+                            courseId: a.course,
+                            courseName: a.courseName || a.courseShortname,
+                            assignmentId: a.id,
+                            duedate: a.duedate,
+                            duedateFormatted: new Date(a.duedate * 1000).toLocaleString()
+                        }));
+                    
+                    return { 
+                        content: [{ 
+                            type: 'text', 
+                            text: JSON.stringify({ count: calendarEvents.length, events: calendarEvents }, null, 2) 
+                        }] 
+                    };
+                }
+                case 'sync_assignments_to_calendar': {
+                    const client = getCurrentClient();
+                    let courseIds = args?.courseIds as number[] | undefined;
+                    
+                    if (!courseIds || courseIds.length === 0) {
+                        const courses = await client.getCourses();
+                        courseIds = courses.map((c: any) => c.id);
+                    }
+                    
+                    const assignments = await client.getAssignments(courseIds);
+                    const now = Math.floor(Date.now() / 1000);
+                    
+                    const calendarEvents = assignments
+                        .filter((a: any) => a.duedate > now)
+                        .map((a: any) => ({
+                            id: `moodle-assign-${a.id}`,
+                            title: `📚 ${a.courseShortname || a.courseName}: ${a.name}`,
+                            start: a.duedate * 1000,
+                            end: a.duedate * 1000 + 3600000,
+                            description: a.intro?.replace(/<[^>]*>/g, '') || 'Assignment deadline',
+                            location: 'Moodle LMS',
+                            source: 'moodle',
+                            courseId: a.course,
+                            courseName: a.courseName || a.courseShortname,
+                        }));
+                    
+                    pendingCalendarEvents = calendarEvents;
+                    
+                    return { 
+                        content: [{ 
+                            type: 'text', 
+                            text: `✅ Synced ${calendarEvents.length} assignment deadline(s) to calendar!\n\n` +
+                                  `Events:\n${calendarEvents.map((e: any) => `• ${e.title} - Due: ${new Date(e.start).toLocaleDateString()}`).join('\n')}\n\n` +
+                                  `Calendar applet can fetch from /api/calendar-events`
+                        }] 
+                    };
                 }
                 default:
                     throw new Error(`Unknown tool: ${name}`);

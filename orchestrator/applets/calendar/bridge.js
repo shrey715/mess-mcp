@@ -157,6 +157,74 @@ class CalendarBridge {
         };
         return this.addEvent(testEvent, 'test');
     }
+
+    /**
+     * Fetch and sync assignment deadlines from Moodle MCP server
+     * @param {number[]} courseIds - Optional array of course IDs to sync
+     * @returns {Promise<{success: boolean, count: number, events: any[]}>}
+     */
+    async syncMoodleAssignments(courseIds = []) {
+        const MCP_SERVER_URL = 'http://localhost:3001';
+        
+        try {
+            console.log('Calendar: Syncing Moodle assignments...');
+            
+            const response = await fetch(`${MCP_SERVER_URL}/api/sync-to-calendar`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ courseIds })
+            });
+            
+            if (!response.ok) {
+                throw new Error(`MCP server error: ${response.status}`);
+            }
+            
+            const data = await response.json();
+            
+            // Add each event to calendar storage
+            for (const event of data.events) {
+                await this.addEvent({
+                    ...event,
+                    color: '#ef4444' // Red for assignment deadlines
+                }, 'moodle-mcp');
+            }
+            
+            console.log(`Calendar: Synced ${data.count} Moodle assignment(s)`);
+            this.showNotification(`Synced ${data.count} assignment deadline(s) from Moodle`);
+            
+            return {
+                success: true,
+                count: data.count,
+                events: data.events
+            };
+        } catch (error) {
+            console.error('Failed to sync Moodle assignments:', error);
+            this.showNotification(`Sync failed: ${error.message}`);
+            return {
+                success: false,
+                count: 0,
+                events: [],
+                error: error.message
+            };
+        }
+    }
+
+    /**
+     * Get pending calendar events from MCP server without adding them
+     * @returns {Promise<{count: number, events: any[]}>}
+     */
+    async getMoodleCalendarEvents() {
+        const MCP_SERVER_URL = 'http://localhost:3001';
+        
+        try {
+            const response = await fetch(`${MCP_SERVER_URL}/api/calendar-events`);
+            if (!response.ok) throw new Error(`MCP server error: ${response.status}`);
+            return await response.json();
+        } catch (error) {
+            console.error('Failed to get Moodle calendar events:', error);
+            return { count: 0, events: [] };
+        }
+    }
 }
 
 // Global instance

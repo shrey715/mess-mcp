@@ -1,6 +1,6 @@
 /**
  * LIHA - Lord I Hate Assignments
- * Main Application Logic with MCP HTTP Server integration and role switching
+ * Main Application Logic
  */
 
 class LIHAApp {
@@ -8,12 +8,17 @@ class LIHAApp {
         this.assignments = [];
         this.courses = [];
         this.selectedId = null;
-        this.currentRole = null;
-        this.availableRoles = [];
+        this.settings = lihaStorage.getSettings();
 
-        // MCP HTTP Server config
-        this.mcpServerUrl = 'http://localhost:3001';
-        this.moodleUrl = 'http://localhost:8085';
+        // UI references
+        this.els = {
+            settingsModal: document.getElementById('settings-modal'),
+            modalMoodleUrl: document.getElementById('setting-moodle-url'),
+            modalToken: document.getElementById('setting-token'),
+            modalMcpUrl: document.getElementById('setting-mcp-url'),
+            statusDot: document.getElementById('status-dot'),
+            statusText: document.getElementById('status-text')
+        };
 
         this.init();
     }
@@ -22,115 +27,112 @@ class LIHAApp {
         await lihaStorage.initPromise;
         this.assignments = await lihaStorage.getAssignments();
 
-        // Load roles from MCP server
-        await this.loadRoles();
-
-        this.render();
         this.setupListeners();
         this.updateSyncTime();
-        this.updateFooter();
-    }
-
-    updateFooter() {
-        const moodleInfo = document.getElementById('moodle-info');
-        if (moodleInfo) {
-            moodleInfo.textContent = `Moodle: ${this.moodleUrl}`;
-        }
-    }
-
-    async loadRoles() {
-        try {
-            const response = await fetch(`${this.mcpServerUrl}/roles`);
-            if (response.ok) {
-                const data = await response.json();
-                this.availableRoles = data.roles;
-                this.currentRole = data.currentRole;
-                this.renderRoleSwitcher();
-            }
-        } catch (error) {
-            console.log('MCP server not available, using direct Moodle API');
-            // Fallback mode - hide role switcher
-            const switcher = document.getElementById('role-switcher');
-            if (switcher) switcher.style.display = 'none';
-        }
-    }
-
-    renderRoleSwitcher() {
-        const container = document.getElementById('role-switcher');
-        if (!container || this.availableRoles.length === 0) return;
-
-        const currentRoleData = this.availableRoles.find(r => r.id === this.currentRole);
-
-        container.innerHTML = `
-            <select id="role-select" class="role-select">
-                ${this.availableRoles.map(role => `
-                    <option value="${role.id}" ${role.id === this.currentRole ? 'selected' : ''}>
-                        ${role.name}
-                    </option>
-                `).join('')}
-            </select>
-            <span class="role-label">Role</span>
-        `;
-
-        document.getElementById('role-select').addEventListener('change', (e) => {
-            this.switchRole(e.target.value);
-        });
-    }
-
-    async switchRole(roleId) {
-        try {
-            const response = await fetch(`${this.mcpServerUrl}/switch-role`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ role: roleId })
-            });
-
-            if (response.ok) {
-                const data = await response.json();
-                this.currentRole = data.role;
-                this.showNotification(`Switched to ${data.name}`, 'success');
-
-                // Clear cached data and re-sync
-                this.assignments = [];
-                await lihaStorage.saveAssignments([]);
-                this.render();
-            }
-        } catch (error) {
-            this.showNotification('Failed to switch role', 'error');
-        }
+        this.checkConnection();
+        this.render();
     }
 
     setupListeners() {
+        // Main buttons
         document.getElementById('btn-sync').addEventListener('click', () => this.syncMoodle());
+
+        // Settings Modal
+        document.getElementById('btn-settings').addEventListener('click', () => this.openSettings());
+        document.getElementById('btn-close-settings').addEventListener('click', () => this.closeSettings());
+        document.getElementById('btn-save-settings').addEventListener('click', () => this.saveSettings());
+    }
+
+    openSettings() {
+        this.settings = lihaStorage.getSettings();
+        this.els.modalMoodleUrl.value = this.settings.moodleUrl;
+        this.els.modalToken.value = this.settings.token;
+        this.els.modalMcpUrl.value = this.settings.mcpUrl;
+        this.els.settingsModal.classList.remove('hidden');
+    }
+
+    closeSettings() {
+        this.els.settingsModal.classList.add('hidden');
+    }
+
+    saveSettings() {
+        const newSettings = {
+            moodleUrl: this.els.modalMoodleUrl.value.replace(/\/$/, ''),
+            token: this.els.modalToken.value,
+            mcpUrl: this.els.modalMcpUrl.value.replace(/\/$/, '')
+        };
+        lihaStorage.saveSettings(newSettings);
+        this.settings = newSettings;
+        this.closeSettings();
+        this.showNotification('Settings saved!', 'success');
+        this.checkConnection();
+    }
+
+    async checkConnection() {
+        try {
+            // Simple ping to see if Moodle is reachable (requires CORS or proxy usually, but we try)
+            // Or trigger a lightweight fetch
+            this.setConnectionStatus('checking');
+            // Check roles via MCP as a proxy check
+            try {
+                const response = await fetch(`${this.settings.mcpUrl}/roles`);
+                if (response.ok) {
+                    this.setConnectionStatus('online');
+                } else {
+                    this.setConnectionStatus('offline');
+                }
+            } catch (e) {
+                // If MCP fails, assume offline or direct connect needed
+                this.setConnectionStatus('offline');
+            }
+        } catch (e) {
+            this.setConnectionStatus('offline');
+        }
+    }
+
+    setConnectionStatus(status) {
+        const dot = this.els.statusDot;
+        const text = this.els.statusText;
+
+        dot.className = 'status-dot';
+        if (status === 'online') {
+            dot.classList.add('online');
+            text.textContent = 'Connected';
+        } else if (status === 'checking') {
+            dot.style.backgroundColor = 'yellow';
+            text.textContent = 'Checking...';
+        } else {
+            dot.classList.add('offline');
+            text.textContent = 'Disconnected';
+        }
     }
 
     async syncMoodle() {
         const btn = document.getElementById('btn-sync');
-        const statusText = document.getElementById('status-text');
+        const originalText = btn.innerHTML;
         btn.innerHTML = '⏳ Syncing...';
         btn.disabled = true;
-        statusText.textContent = 'Syncing...';
 
         try {
             let courses, assignments;
 
-            // Try MCP server first, fallback to direct API
+            // 1. Try MCP first
             try {
+                console.log('Attempting MCP sync...');
                 courses = await this.fetchFromMCP('/api/courses');
                 const courseIds = courses.map(c => c.id);
                 assignments = await this.fetchFromMCP('/api/assignments', { courseIds });
             } catch (mcpError) {
-                console.log('MCP server unavailable, using direct Moodle API');
+                console.warn('MCP failed, trying direct Moodle API...', mcpError);
+                // 2. Fallback to Direct Moodle API
                 courses = await this.fetchCoursesDirectly();
                 const courseIds = courses.map(c => c.id);
                 assignments = await this.fetchAssignmentsDirectly(courseIds);
             }
 
-            this.courses = courses;
-
-            // Filter to pending assignments only
+            // Process data
             const now = Math.floor(Date.now() / 1000);
-            const pendingAssignments = assignments
+            const pending = assignments
                 .filter(a => a.duedate > now)
                 .map(a => ({
                     id: a.id,
@@ -141,93 +143,85 @@ class LIHAApp {
                     intro: a.intro || ''
                 }));
 
-            await lihaStorage.saveAssignments(pendingAssignments);
-            this.assignments = pendingAssignments;
+            // Save
+            await lihaStorage.saveAssignments(pending);
+            this.assignments = pending;
             await lihaStorage.updateLastSync();
 
-            // Sync to calendar
-            for (const a of pendingAssignments) {
-                await lihaBridge.syncToCalendar(a, a.courseName);
-            }
-
-            this.updateSyncTime();
+            // Notify
+            this.showNotification(`Synced ${pending.length} assignments`, 'success');
+            this.setConnectionStatus('online');
             this.render();
-            statusText.textContent = 'Connected';
+            this.updateSyncTime();
 
-            if (pendingAssignments.length > 0) {
-                this.showNotification(`Synced ${pendingAssignments.length} assignment(s)!`, 'success');
-            } else {
-                this.showNotification('No pending assignments found.', 'info');
+            // Sync to Calendar Bridge
+            for (const a of pending) {
+                if (window.lihaBridge) window.lihaBridge.syncToCalendar(a, a.courseName);
             }
+
         } catch (error) {
-            console.error('Sync failed:', error);
-            statusText.textContent = 'Error';
-            this.showNotification(`Sync failed: ${error.message}`, 'error');
+            console.error(error);
+            this.showNotification(`Sync Failed: ${error.message}`, 'error');
+            this.setConnectionStatus('offline');
         } finally {
-            btn.innerHTML = '🔄 Sync Moodle';
+            btn.innerHTML = originalText;
             btn.disabled = false;
         }
     }
 
+    // ... API Helpers ...
     async fetchFromMCP(endpoint, body = null) {
         const options = body ? {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(body)
         } : {};
-
-        const response = await fetch(`${this.mcpServerUrl}${endpoint}`, options);
-        if (!response.ok) throw new Error(`MCP Error: ${response.status}`);
-        return response.json();
+        const res = await fetch(`${this.settings.mcpUrl}${endpoint}`, options);
+        if (!res.ok) throw new Error(`MCP Error ${res.status}`);
+        return res.json();
     }
 
     async fetchCoursesDirectly() {
-        const url = `${this.moodleUrl}/webservice/rest/server.php`;
-        const token = '6e46f93f5f12b5bf476e7f2b8e7d6ba3'; // Default admin token
+        const { moodleUrl, token } = this.settings;
+        const url = `${moodleUrl}/webservice/rest/server.php`;
 
-        // Get site info to get user id
-        const siteInfoParams = new URLSearchParams({
+        // Get Site Info for User ID
+        const infoParams = new URLSearchParams({
             wstoken: token,
             wsfunction: 'core_webservice_get_site_info',
             moodlewsrestformat: 'json'
         });
+        const infoRes = await fetch(`${url}?${infoParams}`);
+        const info = await infoRes.json();
+        if (info.exception) throw new Error(info.message);
 
-        const siteResponse = await fetch(`${url}?${siteInfoParams}`);
-        const siteInfo = await siteResponse.json();
-
-        if (siteInfo.exception) throw new Error(siteInfo.message);
-
+        // Get Courses
         const coursesParams = new URLSearchParams({
             wstoken: token,
             wsfunction: 'core_enrol_get_users_courses',
             moodlewsrestformat: 'json',
-            userid: siteInfo.userid
+            userid: info.userid
         });
+        const coursesRes = await fetch(`${url}?${coursesParams}`);
+        const courses = await coursesRes.json();
+        if (courses.exception) throw new Error(courses.message);
 
-        const response = await fetch(`${url}?${coursesParams}`);
-        const data = await response.json();
-
-        if (data.exception) throw new Error(data.message);
-        return data;
+        return courses;
     }
 
     async fetchAssignmentsDirectly(courseIds) {
-        const url = `${this.moodleUrl}/webservice/rest/server.php`;
-        const token = '6e46f93f5f12b5bf476e7f2b8e7d6ba3';
+        const { moodleUrl, token } = this.settings;
+        const url = `${moodleUrl}/webservice/rest/server.php`;
 
         const params = new URLSearchParams({
             wstoken: token,
             wsfunction: 'mod_assign_get_assignments',
             moodlewsrestformat: 'json'
         });
+        courseIds.forEach((id, i) => params.append(`courseids[${i}]`, id));
 
-        courseIds.forEach((id, idx) => {
-            params.append(`courseids[${idx}]`, id);
-        });
-
-        const response = await fetch(`${url}?${params}`);
-        const data = await response.json();
-
+        const res = await fetch(`${url}?${params}`);
+        const data = await res.json();
         if (data.exception) throw new Error(data.message);
 
         const assignments = [];
@@ -242,158 +236,155 @@ class LIHAApp {
         return assignments;
     }
 
-    showNotification(message, type = 'info') {
-        const existing = document.querySelector('.notification');
-        if (existing) existing.remove();
+    // UI Rendering
+    render() {
+        const list = document.getElementById('assignment-list');
+        document.getElementById('assign-count').textContent = this.assignments.length;
 
-        const notification = document.createElement('div');
-        notification.className = `notification notification-${type}`;
-        notification.innerHTML = `
-            <span>${message}</span>
-            <button onclick="this.parentElement.remove()">×</button>
-        `;
-        document.body.appendChild(notification);
-        setTimeout(() => notification.remove(), 4000);
+        if (this.assignments.length === 0) {
+            list.innerHTML = '<div class="empty-message" style="text-align:center; opacity:0.6; margin-top:2rem;">🎉 No pending assignments!</div>';
+            return;
+        }
+
+        list.innerHTML = this.assignments.map(a => `
+            <div class="assignment-card ${this.selectedId === a.id ? 'active' : ''}" 
+                 onclick="app.selectAssignment(${a.id})">
+                <div class="card-title">${this.escapeHtml(a.name)}</div>
+                <div class="card-meta">
+                    <span class="course-code">${this.escapeHtml(a.courseName)}</span>
+                    <span class="deadline ${this.isUrgent(a.duedate) ? 'urgent' : ''}">
+                        ${this.formatDate(a.duedate)}
+                    </span>
+                </div>
+            </div>
+        `).join('');
+
+        this.renderDetailView();
+    }
+
+    renderDetailView() {
+        const welcome = document.getElementById('welcome-view');
+        const detail = document.getElementById('suggestion-view');
+
+        if (!this.selectedId) {
+            welcome.classList.remove('hidden');
+            detail.classList.add('hidden');
+            return;
+        }
+
+        welcome.classList.add('hidden');
+        detail.classList.remove('hidden');
+
+        const item = this.assignments.find(a => a.id === this.selectedId);
+        if (item) {
+            document.getElementById('selected-title').textContent = item.name;
+            document.getElementById('selected-date').textContent = this.formatDate(item.duedate);
+            document.getElementById('selected-course').textContent = item.courseName;
+        }
     }
 
     async selectAssignment(id) {
         this.selectedId = id;
-        const assignment = this.assignments.find(a => a.id === id);
         this.render();
 
+        // Fetch/Load suggestions
         const suggestion = await lihaStorage.getSuggestion(id);
         if (suggestion) {
             this.renderSuggestion(suggestion.suggestions);
         } else {
-            this.fetchSuggestion(assignment);
+            this.fetchSuggestion(this.assignments.find(a => a.id === id));
         }
     }
 
     async fetchSuggestion(assignment) {
-        const section = document.getElementById('roadmap-steps');
-        section.innerHTML = '<div class="loading-state">🔍 Analyzing lectures via GraphRAG...</div>';
+        const steps = document.getElementById('roadmap-steps');
+        steps.innerHTML = '<div class="loading-state">🔍 Analyzing course materials...</div>';
 
         try {
-            // Try to call MCP server's graphrag endpoint
-            const response = await fetch(`${this.mcpServerUrl}/api/graphrag`, {
+            // Try MCP GraphRAG
+            const res = await fetch(`${this.settings.mcpUrl}/api/graphrag`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ question: assignment.name })
+                body: JSON.stringify({ question: `How do I solve: ${assignment.name}` })
             });
 
-            if (response.ok) {
-                const data = await response.json();
-                await lihaStorage.saveSuggestion(assignment.id, data.suggestions || []);
-                this.renderSuggestion(data.suggestions || []);
+            if (res.ok) {
+                const data = await res.json();
+                const suggestions = data.suggestions || [];
+                await lihaStorage.saveSuggestion(assignment.id, suggestions);
+                this.renderSuggestion(suggestions);
                 return;
             }
-        } catch (error) {
-            console.log('GraphRAG not available, using placeholder');
+        } catch (e) {
+            console.log('GraphRAG unavailable');
         }
 
-        // Fallback suggestions
+        // Fallback simulation
         setTimeout(async () => {
             const suggestions = [{
-                title: 'Review relevant lecture materials',
-                desc: `Study the concepts related to "${assignment.name}"`,
-                source: `${assignment.courseName || 'Course'} - Uploaded Lectures`
+                title: 'Review Lecture Slides',
+                desc: `Check the modules related to ${assignment.name}`,
+                source: 'Week 3 Materials'
             }];
             await lihaStorage.saveSuggestion(assignment.id, suggestions);
             this.renderSuggestion(suggestions);
-        }, 1000);
-    }
-
-    async updateSyncTime() {
-        const lastSync = await lihaStorage.getLastSync();
-        const syncInfo = document.getElementById('sync-info');
-        if (lastSync && syncInfo) {
-            const date = new Date(lastSync);
-            syncInfo.textContent = `Last synced: ${date.toLocaleString()}`;
-        }
-    }
-
-    render() {
-        const list = document.getElementById('assignment-list');
-        const countBadge = document.getElementById('assign-count');
-
-        countBadge.textContent = this.assignments.length;
-
-        if (this.assignments.length === 0) {
-            list.innerHTML = '<div class="empty-message">No assignments found.<br>Click "Sync Moodle" to fetch.</div>';
-        } else {
-            list.innerHTML = this.assignments.map(a => `
-                <div class="assignment-card ${this.selectedId === a.id ? 'active' : ''}" 
-                     onclick="app.selectAssignment(${a.id})">
-                    <div class="card-title">${this.escapeHtml(a.name)}</div>
-                    <div class="card-meta">
-                        <span class="course-code">${this.escapeHtml(a.courseName || 'Course')}</span>
-                        <span class="deadline ${this.isUrgent(a.duedate) ? 'urgent' : ''}">
-                            ${this.formatDate(a.duedate)}
-                        </span>
-                    </div>
-                </div>
-            `).join('');
-        }
-
-        const welcomeView = document.getElementById('welcome-view');
-        const suggestionView = document.getElementById('suggestion-view');
-
-        if (this.selectedId) {
-            welcomeView.classList.add('hidden');
-            suggestionView.classList.remove('hidden');
-
-            const a = this.assignments.find(a => a.id === this.selectedId);
-            if (a) {
-                document.getElementById('selected-title').textContent = a.name;
-                document.getElementById('selected-date').textContent = this.formatDate(a.duedate);
-                document.getElementById('selected-course').textContent = a.courseName || 'Course';
-            }
-        } else {
-            welcomeView.classList.remove('hidden');
-            suggestionView.classList.add('hidden');
-        }
+        }, 1200);
     }
 
     renderSuggestion(suggestions) {
         const steps = document.getElementById('roadmap-steps');
-        if (!suggestions || suggestions.length === 0) {
-            steps.innerHTML = '<div class="empty-message">No suggestions available yet.</div>';
+        if (!suggestions || !suggestions.length) {
+            steps.innerHTML = '<div>No specific suggestions found.</div>';
             return;
         }
-
-        steps.innerHTML = suggestions.map((s, idx) => `
+        steps.innerHTML = suggestions.map((s, i) => `
             <div class="roadmap-step">
-                <div class="step-number">${idx + 1}</div>
+                <div class="step-number">${i + 1}</div>
                 <div class="step-content">
                     <h4>${this.escapeHtml(s.title)}</h4>
                     <p>${this.escapeHtml(s.desc)}</p>
-                    <div class="step-source">📖 ${this.escapeHtml(s.source)}</div>
+                    <div class="step-source">📚 ${this.escapeHtml(s.source || 'General')}</div>
                 </div>
             </div>
         `).join('');
     }
 
+    // Utils
     escapeHtml(text) {
         const div = document.createElement('div');
         div.textContent = text || '';
         return div.innerHTML;
     }
 
-    isUrgent(timestamp) {
-        const diff = timestamp * 1000 - Date.now();
-        return diff < 86400000;
+    isUrgent(ts) {
+        return (ts * 1000 - Date.now()) < 86400000;
     }
 
-    formatDate(timestamp) {
-        const date = new Date(timestamp * 1000);
-        const now = new Date();
-        const diffDays = Math.ceil((date - now) / (1000 * 60 * 60 * 24));
+    formatDate(ts) {
+        const date = new Date(ts * 1000);
+        return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    }
 
-        if (diffDays === 0) return 'Today';
-        if (diffDays === 1) return 'Tomorrow';
-        if (diffDays < 7) return `${diffDays} days`;
+    updateSyncTime() {
+        lihaStorage.getLastSync().then(ts => {
+            if (ts) document.getElementById('sync-info').innerText = `Synced: ${new Date(parseInt(ts)).toLocaleTimeString()}`;
+        });
+    }
 
-        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    showNotification(msg, type) {
+        const note = document.createElement('div');
+        note.className = `notification ${type}`;
+        note.style.position = 'fixed';
+        note.style.bottom = '20px';
+        note.style.right = '20px';
+        note.style.background = type === 'success' ? '#10b981' : '#ef4444';
+        note.style.color = 'white';
+        note.style.padding = '10px 20px';
+        note.style.borderRadius = '8px';
+        note.style.boxShadow = '0 4px 6px rgba(0,0,0,0.2)';
+        note.innerText = msg;
+        document.body.appendChild(note);
+        setTimeout(() => note.remove(), 3000);
     }
 }
 

@@ -4,84 +4,101 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LIHA - Lord I Hate Assignments</title>
+    <title>LIHA</title>
     <link rel="stylesheet" href="style.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 
 <body>
     <div id="app">
+        <!-- Header -->
         <header class="header">
             <div class="header-left">
-                <h1>📚 LIHA</h1>
-                <p class="subtitle">Lord I Hate Assignments</p>
+                <h1>LIHA</h1>
             </div>
             <div class="header-right">
-                <div id="role-switcher" class="role-switcher">
-                    <!-- Role dropdown will be injected by JS -->
-                </div>
-                <button id="btn-sync" class="btn primary">🔄 Sync Moodle</button>
-                <div class="status-indicator">
-                    <span class="status-dot online"></span>
-                    <span id="status-text">Connected</span>
-                </div>
+                <button id="btn-sync" class="btn primary">
+                    Sync
+                </button>
+                <button id="btn-settings" class="icon-btn" title="Settings">
+                    <svg width="15" height="15" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path
+                            d="M7.5 0C7.77614 0 8 0.223858 8 0.5V2.02983C8.42398 2.10093 8.83155 2.2356 9.21523 2.42621L10.2974 1.34407C10.4926 1.14881 10.8092 1.14881 11.0045 1.34407L13.6559 3.99552C13.8512 4.19078 13.8512 4.50737 13.6559 4.70263L12.5738 5.78477C12.7644 6.16845 12.8991 6.57602 12.9702 7H14.5C14.7761 7 15 7.22386 15 7.5C15 7.77614 14.7761 8 14.5 8H12.9702C12.8991 8.42398 12.7644 8.83155 12.5738 9.21523L13.6559 10.2974C13.8512 10.4926 13.8512 10.8092 13.6559 11.0045L11.0045 13.6559C10.8092 13.8512 10.4926 13.8512 10.2974 13.6559L9.21523 12.5738C8.83155 12.7644 8.42398 12.8991 8 12.9702V14.5C8 14.7761 7.77614 15 7.5 15C7.22386 15 7 14.7761 7 14.5V12.9702C6.57602 12.8991 6.16845 12.7644 5.78477 12.5738L4.70263 13.6559C4.50737 13.8512 4.19078 13.8512 3.99552 13.6559L1.34407 11.0045C1.14881 10.8092 1.14881 10.4926 1.34407 10.2974L2.42621 9.21523C2.2356 8.83155 2.10093 8.42398 2.02983 8H0.5C0.223858 8 0 7.77614 0 7.5C0 7.22386 0.223858 7 0.5 7H2.02983C2.10093 6.57602 2.2356 6.16845 2.42621 5.78477L1.34407 4.70263C1.14881 4.50737 1.14881 4.19078 1.34407 3.99552L3.99552 1.34407C4.19078 1.14881 4.50737 1.14881 4.70263 1.34407L5.78477 2.42621C6.16845 2.2356 6.57602 2.10093 7 2.02983V0.5C7 0.223858 7.22386 0 7.5 0ZM7.5 11C9.433 11 11 9.433 11 7.5C11 5.567 9.433 4 7.5 4C5.567 4 4 5.567 4 7.5C4 9.433 5.567 11 7.5 11Z"
+                            fill="currentColor" fill-rule="evenodd" clip-rule="evenodd" />
+                    </svg>
+                </button>
             </div>
         </header>
 
+        <!-- Main Content -->
         <main class="main-container">
+            <!-- Sidebar -->
             <aside class="sidebar">
                 <div class="section-header">
-                    <h2>Pending Assignments</h2>
+                    <h2>Pending</h2>
                     <span class="badge" id="assign-count">0</span>
                 </div>
                 <div id="assignment-list" class="assignment-list">
-                    <!-- Assignments will be injected here -->
-                    <div class="loading-state">Fetching your misery...</div>
+                    <div class="loading-state empty-state">Ready to sync</div>
                 </div>
             </aside>
 
+            <!-- Details Area -->
             <section class="content-area">
                 <div id="welcome-view" class="empty-state">
-                    <div class="hero-icon">📖</div>
-                    <h2>Study Roadmap</h2>
-                    <p>Select an assignment to see what you need to study from your lectures to solve it.</p>
+                    <h2>Select an assignment</h2>
+                    <p>View AI-generated study roadmaps based on your course materials.</p>
                 </div>
 
                 <div id="suggestion-view" class="suggestion-view hidden">
                     <div class="suggestion-header">
-                        <h2 id="selected-title">Assignment Name</h2>
+                        <h2 id="selected-title">Assignment Title</h2>
                         <div class="meta-row">
-                            <span class="meta-item calendar">📅 Due: <span id="selected-date">Tomorrow</span></span>
-                            <span class="meta-item course">🏫 <span id="selected-course">Course Name</span></span>
+                            <span class="meta-item"><span id="selected-course">Course</span></span>
+                            <span class="meta-item">Due <span id="selected-date">--</span></span>
                         </div>
                     </div>
 
                     <div class="roadmap-container">
-                        <h3>🎯 Knowledge Roadmap</h3>
-                        <p class="roadmap-desc">Based on your lectures, here is what you should study:</p>
-
-                        <div id="roadmap-steps" class="roadmap-steps">
-                            <!-- Roadmap steps injected here -->
-                        </div>
-                    </div>
-
-                    <div class="action-bar">
-                        <button class="btn secondary">📎 Open Assignment PDF</button>
-                        <button class="btn accent">💬 Ask LIHA AI</button>
+                        <h3>Knowledge Roadmap</h3>
+                        <div id="roadmap-steps" class="roadmap-steps"></div>
                     </div>
                 </div>
             </section>
         </main>
 
+        <!-- Footer -->
         <footer class="footer">
-            <div id="sync-info">Last synced: Never</div>
-            <div id="moodle-info">Moodle: http://10.42.0.159:8085</div>
+            <div id="sync-info">Not synced</div>
+            <div class="status-indicator">
+                <span id="status-dot" class="status-dot offline"></span>
+                <span id="status-text">Disconnect</span>
+            </div>
         </footer>
-    </div>
 
-    <!-- Background Decoration -->
-    <div class="blob-1"></div>
-    <div class="blob-2"></div>
+        <!-- Settings Modal -->
+        <div id="settings-modal" class="hidden modal-overlay">
+            <div class="modal">
+                <h2>Settings</h2>
+                <div class="form-group">
+                    <label>Moodle URL</label>
+                    <input type="text" id="setting-moodle-url" placeholder="http://10.42.0.159:8085">
+                </div>
+                <div class="form-group">
+                    <label>Access Token</label>
+                    <input type="text" id="setting-token" placeholder="Enter WS Token">
+                </div>
+                <div class="form-group">
+                    <label>MCP Server URL</label>
+                    <input type="text" id="setting-mcp-url" placeholder="http://localhost:3001">
+                </div>
+                <div class="modal-actions">
+                    <button id="btn-close-settings" class="btn secondary">Cancel</button>
+                    <button id="btn-save-settings" class="btn primary">Save Changes</button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- Scripts -->
     <script src="storage.js"></script>

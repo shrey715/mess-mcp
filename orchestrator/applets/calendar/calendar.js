@@ -172,6 +172,9 @@ class CalendarApp {
                     <div class="current-date">${monthName}</div>
                 </div>
                 <div class="header-right">
+                    <button class="auth-btn moodle" id="btn-moodle" title="Sync assignment deadlines from Moodle">
+                        📚 Sync Moodle
+                    </button>
                     <button class="auth-btn google ${auth.isConnected('google') ? 'connected' : ''}" id="btn-google">
                         ${auth.isConnected('google') ? '✓ Google' : '🔗 Google'}
                     </button>
@@ -564,6 +567,35 @@ class CalendarApp {
 
         document.getElementById('btn-microsoft')?.addEventListener('click', () => {
             auth.isConnected('microsoft') ? this.disconnectMicrosoft() : this.connectMicrosoft();
+        });
+
+        // Moodle sync button
+        document.getElementById('btn-moodle')?.addEventListener('click', async () => {
+            const btn = document.getElementById('btn-moodle');
+            btn.textContent = '⏳ Syncing...';
+            btn.disabled = true;
+            
+            try {
+                const result = await calendarBridge.syncMoodleAssignments();
+                if (result.success) {
+                    await this.loadEvents();
+                    btn.textContent = `✅ ${result.count} synced`;
+                    setTimeout(() => {
+                        btn.textContent = '📚 Sync Moodle';
+                        btn.disabled = false;
+                    }, 2000);
+                } else {
+                    btn.textContent = '❌ Failed';
+                    setTimeout(() => {
+                        btn.textContent = '📚 Sync Moodle';
+                        btn.disabled = false;
+                    }, 2000);
+                }
+            } catch (error) {
+                console.error('Moodle sync failed:', error);
+                btn.textContent = '📚 Sync Moodle';
+                btn.disabled = false;
+            }
         });
 
         // Test IPC
