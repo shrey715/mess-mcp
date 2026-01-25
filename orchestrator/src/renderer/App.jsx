@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import * as LucideIcons from 'lucide-react';
 import Header from './components/Header';
 import Sidebar from './components/Sidebar';
 import AddAppletModal from './components/AddAppletModal';
@@ -7,32 +6,48 @@ import EmptyState from './components/EmptyState';
 
 // Default applet manifests for quick start
 const defaultApplets = [
-    // IPC Demo applets
+    // Priority IIIT applets
+    {
+        id: 'iiit-chatbot',
+        name: 'IIIT AI Assistant',
+        url: 'http://localhost:3456/chatbot/index.html',
+        icon: '🤖',
+        color: '#667eea',
+        permissions: ['ipc', 'notifications']
+    },
+    {
+        id: 'liha',
+        name: 'LIHA',
+        url: 'http://localhost:3456/liha/index.html',
+        icon: '📚',
+        color: '#8b5cf6',
+        permissions: ['ipc', 'notifications']
+    },
+    {
+        id: 'mess-mate',
+        name: 'Mess Mate',
+        url: 'http://localhost:5174',
+        icon: '🍽️',
+        color: '#EA2264',
+        permissions: ['ipc', 'notifications']
+    },
     {
         id: 'unified-calendar',
-        name: '📅 Unified Calendar',
+        name: 'Unified Calendar',
         url: 'http://localhost:3456/calendar/index.html',
         icon: '📅',
-        color: '#8b5cf6',
-        permissions: ['ipc']
-    },
-    {
-        id: 'sender-demo',
-        name: '📤 IPC Sender Demo',
-        url: 'http://localhost:3456/sender.html',
-        icon: '📤',
-        color: '#6366f1',
-        permissions: ['ipc']
-    },
-    {
-        id: 'receiver-demo',
-        name: '📥 IPC Receiver Demo',
-        url: 'http://localhost:3456/receiver.html',
-        icon: '📥',
         color: '#22c55e',
+        permissions: ['ipc', 'notifications']
+    },
+    {
+        id: 'github',
+        name: 'GitHub',
+        url: 'https://github.com',
+        icon: '🐙',
+        color: '#24292e',
         permissions: ['ipc']
     },
-    // Regular applets
+    // Other popular services
     {
         id: 'google-calendar',
         name: 'Google Calendar',
@@ -65,37 +80,22 @@ const defaultApplets = [
         color: '#000000',
         permissions: ['ipc']
     },
+    // IPC Demo applets (for testing)
     {
-        "id": "github",
-        "name": "GitHub",
-        "url": "https://github.com",
-        "icon": "🐙",
-        "color": "#24292e",
-        "permissions": ["ipc"]
+        id: 'sender-demo',
+        name: '📤 IPC Sender Demo',
+        url: 'http://localhost:3456/sender.html',
+        icon: '📤',
+        color: '#6366f1',
+        permissions: ['ipc']
     },
     {
-        "id": "liha",
-        "name": "LIHA",
-        "url": "http://localhost:3456/liha/index.html",
-        "icon": "📚",
-        "color": "#8b5cf6",
-        "permissions": ["ipc", "notifications"]
-    },
-    {
-        "id": "local-calendar",
-        "name": "Unified Calendar",
-        "url": "http://localhost:3456/calendar/index.html",
-        "icon": "Calendar",
-        "color": "#22c55e",
-        "permissions": ["ipc", "notifications"]
-    },
-    {
-        "id": "mess-mate",
-        "name": "Mess Mate",
-        "url": "http://localhost:5174",
-        "icon": "UtensilsCrossed",
-        "color": "#EA2264",
-        "permissions": ["ipc", "notifications"]
+        id: 'receiver-demo',
+        name: '📥 IPC Receiver Demo',
+        url: 'http://localhost:3456/receiver.html',
+        icon: '📥',
+        color: '#22c55e',
+        permissions: ['ipc']
     }
 ];
 
@@ -237,25 +237,8 @@ function App() {
                         <EmptyState onAddApplet={openModal} />
                     )}
 
-                    {/* Placeholder for loading/hibernated applets */}
-                    {activeApplet && activeApplet.state !== 'active' && (
-                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none select-none bg-shell-bg z-0">
-                            <div className="flex flex-col items-center gap-6 text-zinc-500 animate-pulse">
-                                {(() => {
-                                    const Icon = LucideIcons[activeApplet.manifest?.icon] || LucideIcons.Package;
-                                    return <Icon size={80} strokeWidth={1} className="filter drop-shadow-2xl opacity-50 contrast-125" />;
-                                })()}
-                                <div className="flex flex-col items-center gap-1">
-                                    <span className="text-sm font-bold tracking-[0.2em] uppercase text-zinc-600">
-                                        {activeApplet.state === 'loading' ? 'Loading' : 'Restoring'}
-                                    </span>
-                                    <span className="text-xs text-zinc-700">
-                                        {activeApplet.manifest?.name}
-                                    </span>
-                                </div>
-                            </div>
-                        </div>
-                    )}
+                    {/* This area is where Electron renders the WebContentsView */}
+                    {/* The views are positioned absolutely by ViewManager */}
                 </div>
             </div>
 

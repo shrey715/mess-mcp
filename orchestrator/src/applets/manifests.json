@@ -104,5 +104,16 @@
             "ipc",
             "notifications"
         ]
+    },
+    {
+        "id": "iiit-chatbot",
+        "name": "IIIT AI Assistant",
+        "url": "http://localhost:3456/chatbot/index.html",
+        "icon": "🤖",
+        "color": "#667eea",
+        "permissions": [
+            "ipc",
+            "notifications"
+        ]
     }
 ]
