@@ -1,0 +1,2221 @@
+$schema: "https://spec.openapis.org/oas/3.1/schema/2022-10-07"
+
+openapi: "3.1.1"
+
+info:
+  title: Mess Management System API
+  version: "2"
+  summary: API Documentation for the Mess Management System
+  description: |
+    Please see the [tutorial on using MMS APIs](https://gitlab.iiit.ac.in/messcom/backend/-/blob/main/docs/tutorial.md).
+
+    ## Rate Limits
+
+    There are rudimentary rate limits put in place for every requests of **420 times a second**. There are unfortunately
+    no `X-RateLimit-*` headers sent with the request as of the time of writing, but if a request is rate limited, a
+    `429 Too Many Requests` is sent, with the JSON body being the typical error response with the code "rate-limited".
+
+    ## Changes in v2
+     
+    - `/api/mess/minimal` is removed and replaced by `/api/mess/info` and no longer returns rates
+    - `/api/mess/menus` endpoint no longer requires a mess ID, it returns all the menus
+  contact:
+    name: Mess Portal Admins
+    email: messportal.admins@students.iiit.ac.in
+  license:
+    name: GNU Affero General Public License 3.0
+    identifier: AGPL-3.0
+
+servers:
+  - url: /api
+    description: This server
+  - url: https://mess.iiit.ac.in/api
+    description: Production server
+
+tags:
+  - name: Authentication
+    description: Authentication endpoints
+  - name: Mess
+    description: Mess info, rates and capacity endpoints
+  - name: Registrations
+    description: Meal registration and cancellation endpoints
+  - name: Extras
+    description: Extra item registrations and list endpoints
+  - name: Config
+    description: Configuration endpoints
+  - name: Preferences
+    description: User preference endpoints
+  - name: Feedback
+    description: Meal feedback and grievances endpoints
+  - name: Billing
+    description: Billing endpoints
+
+paths:
+  /auth/login/cas:
+    get:
+      summary: Login for IIIT Students
+      description: |
+        Redirects the user to the CAS login page. **The user must be redirected
+        to this URL, it should not be called using AJAX.**
+
+        After completing the authentication procedure, regardless of success or failure,
+        the user will always be redirected back to the frontend. If an error has occured,
+        the `error_code` and `error_message` query parameters will be set.
+      tags:
+        - Authentication
+      response:
+        '302':
+          description: Redirects to the CAS login page, and then the frontend, always.
+  /auth/login/pass:
+    post:
+      summary: Login for MSIT Students/Interns
+      description: |
+        Logs in the user using the given username and password. This endpoint only works for MSIT students/interns, whose logins are managed by MMS.
+      tags:
+        - Authentication
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                user:
+                  type: string
+                  format: email
+                  required: true
+                  description: The e-mail address of the student.
+                  example: you@msitprogram.net
+                pass:
+                  type: string
+                  format: password
+                  required: true
+                  description: The student's password, in plaintext.
+                  example: correct-horse-battery-staple
+      responses:
+        '200':
+          description: The logged in user's information.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/User"
+        '401':
+          $ref: "#/components/responses/Unauthorized"
+        '403':
+          description: Returned when a IIIT student attempts login.
+          $ref: "#/components/responses/Forbidden"
+        '500':
+          $ref: "#/components/responses/InternalServerError" 
+  /auth/logout:
+    get:
+      summary: Logout current user
+      description: |
+        Logs out the currently logged in user.
+      tags:
+        - Authentication
+      responses:
+        '302':
+          description: |
+            The user has been logged out successfully, and redirected to either
+            the CAS logout page for CAS-authenticated users, or back to the
+            frontend for other users. Note that the CAS logout page does not
+            redirect back to the frontend.
+            
+            **The user must be redirected to this URL, it should not be called using AJAX.**
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /auth/me:
+    get:
+      summary: Get logged in user
+      description: |
+        Get the currently logged in user's details. If there is no logged in user, it
+        returns `401`.
+      tags:
+        - Authentication
+      responses:
+        '200':
+          description: The user
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/User"
+        '401':
+          $ref: "#/components/responses/Unauthorized"
+        '500':
+          $ref: "#/components/responses/InternalServerError"
+  /auth/keys:
+    get:
+      summary: Get all auth keys
+      tags:
+        - Authentication
+      responses:
+        '200':
+          description: The auth keys, including the expired ones.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/AuthKey"
+        '401':
+          $ref: "#/components/responses/Unauthorized"
+        '500':
+          $ref: "#/components/responses/InternalServerError"
+    post:
+      summary: Create an auth key
+      tags:
+        - Authentication
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  required: true
+                  description: A unique friendly name for the key
+                expiry:
+                  type: string
+                  format: date
+                  required: true
+                  description: The date this key expires
+                  example: "1998-09-02"
+      responses:
+        '200':
+          description: The key
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    allOf:
+                    - $ref: "#/components/schemas/AuthKey"
+                    - type: object
+                      data:
+                        key:
+                          type: string
+                          description: The created key
+        '401':
+          $ref: "#/components/responses/Unauthorized"
+        '409':
+          description: A key with the same name already exists.
+          content:
+            application/json:
+              schema:
+                allOf:
+                - type: object
+                  properties:
+                    error:
+                      allOf:
+                        - $ref: "#/components/schemas/Error"
+                        - type: object
+                          properties:
+                            code:
+                              type: string
+                              const: "already-exists"
+        '500':
+          $ref: "#/components/responses/InternalServerError"
+  /auth/keys/info:
+    get:
+      summary: Get information about an auth key
+      tags:
+        - Authentication
+      parameters:
+        - name: authorization
+          in: header
+          schema:
+            type: string
+          description: The key
+          required: true
+          allowEmptyValue: false
+      responses:
+        '200':
+          description: If the auth key is expired, it will return a HTTP 401 or HTTP 403 error. Use the `/api/auth/keys` endpoint to list expired keys.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/AuthKey"
+        '401':
+          $ref: "#/components/responses/Unauthorized"
+        '403':
+          $ref: "#/components/responses/Forbidden"
+        '500':
+          $ref: "#/components/responses/InternalServerError"
+  /auth/keys/{name}:
+    delete:
+      summary: Delete the auth key
+      description: The auth key is identified by its **name**, not the key itself.
+      parameters:
+        - name: name
+          in: query
+          schema:
+            type: string
+          description: The name of the key
+          required: true
+          allowEmptyValue: false
+      tags:
+        - Authentication
+      responses:
+        '204':
+          description: Deleted successfully
+        '500':
+          $ref: "#/components/responses/InternalServerError"
+  /auth/reset-token:
+    post:
+      summary: Reset user token
+      description: |
+        Resets the 'QR' token for the currently logged in user. If there is no logged
+        in user, it returns `401`.
+      tags:
+        - Authentication
+      responses:
+        '200':
+          description: The user's new token.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      token:
+                        type: string
+                        description: |
+                          A URL-safe base 64 encoded string that is used to uniquely
+                          identify the user when they scan their QR in a mess.
+        '401':
+          $ref: "#/components/responses/Unauthorized"
+        '500':
+          $ref: "#/components/responses/InternalServerError"
+  /auth/reset-pass:
+    post:
+      summary: Generate reset password OTP
+      description: |
+        Generate a reset password OTP and email it to the user.
+        Only MSIT and intern users are allowed to reset their password.
+        This endpoint has a rate limit of once per minute.
+        If the email is invalid, or the user is not MSIT or intern, it'll still succeed
+        with a 204, but the email would not be sent.
+      tags:
+        - Authentication
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  format: email
+      responses:
+        '204':
+          description: Success.
+        '400':
+          $ref: "#/components/responses/BadRequest"
+        '403':
+          $ref: "#/components/responses/Forbidden"
+        '500':
+          $ref: "#/components/responses/InternalServerError"
+  /auth/reset-pass/verify:
+    post:
+      summary: Complete reset password flow
+      description: |
+        Send the OTP, email, and new password to reset the
+        user's password
+      tags:
+        - Authentication
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  format: email
+                otp:
+                  type: string
+                  description: "6-digit decimal number sent as a string"
+                  example: "123456"
+                password:
+                  type: string
+      responses:
+        '204':
+          description: Success.
+        '400':
+          $ref: "#/components/responses/BadRequest"
+        '403':
+          $ref: "#/components/responses/Forbidden"
+        '500':
+          $ref: "#/components/responses/InternalServerError"
+
+  /mess/info:
+    get:
+      summary: Get information about all messes
+      description: |
+        **New in v2:** Does not return rates anymore
+      tags:
+        - Mess
+      responses:
+        '200':
+          description: The information
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/MessInfo"
+        '401':
+          $ref: "#/components/responses/Unauthorized"
+        '500':
+          $ref: "#/components/responses/InternalServerError" 
+  /mess/menus:
+    get:
+      summary: Get mess menus on a certain day
+      tags:
+        - Mess
+      parameters:
+        - name: on
+          in: query
+          description: The date for which the menu should be fetched. Defaults to today's date.
+          required: false
+          schema:
+            type: string
+            format: date
+            example: "1998-09-02"
+      responses:
+        '200':
+          description: |
+            The menu for each mess. The `days` property contains the names of
+            each day, mapped against the menu for that day. Each day has items
+            for breakfast, lunch, snacks and dinner.
+
+            Menus for each mess are stored as a JSON object with unordered fields
+            for each day ("sunday", "monday", etc.). Field values are another
+            object whose keys are the meal ("breakfast", "lunch", "snacks", "dinner")
+            and the values are arrays with item objects (with fields "category" and
+            "name").
+
+            Menus are stored weekwise with the week starting on a Sunday, so if you
+            wish to request the menu that is correct for 2025-06-07 (Saturday), its
+            corresponding menu would start on the Sunday of that week (2025-06-01).
+
+            This fact is important to note if you want to display a weekly/monthly
+            menu. Make sure to anchor your dates on Sundays to reflect changes in the
+            menu correctly. As a collorary of this fact, the `effective_from` field
+            of a menu will always fall on a Sunday.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        mess:
+                          type: string
+                          description: The ID of the mess.
+                          example: yuktahar
+                        updated_at:
+                          type: string
+                          format: date-time
+                          description: The last time the menu was updated.
+                        effective_from:
+                          type: string
+                          format: date
+                          description: The date, after which, this menu comes into effect.
+                        days:
+                          type: object
+                          description: The menu for each day.
+        '400':
+          $ref: "#/components/responses/BadRequest"
+        '401':
+          $ref: "#/components/responses/Unauthorized"
+        '500':
+          $ref: "#/components/responses/InternalServerError" 
+  /mess/rates:
+    get:
+      summary: Get mess rates for a meal
+      tags:
+        - Mess
+      parameters:
+        - name: meal
+          in: query
+          description: The name of the meal.
+          required: true
+          schema:
+            $ref: "#/components/schemas/Meal"
+        - name: on
+          in: query
+          description: Meal date for getting the rate. Defaults to today's date.
+          required: false
+          schema:
+            type: string
+            format: date
+            example: "1998-09-02"
+      responses:
+        '200':
+          description: |
+            The rates of each mess for the given meal on the given date. Note that
+            each property will be a category, and the array of items will contain
+            the rate and the day if a specific day's rate is applicable.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    propertyNames:
+                      $ref: "#/components/schemas/Category"
+                    additionalProperties:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          mess:
+                            type: string
+                            example: yuktahar
+                          day:
+                            $ref: "#/components/schemas/Day"
+                          rate:
+                            type: integer
+                            example: 4210
+        '401':
+          $ref: "#/components/responses/Unauthorized"
+        '500':
+          $ref: "#/components/responses/InternalServerError" 
+  /mess/capacities:
+    get:
+      summary: Get mess capacities for a meal
+      tags:
+        - Mess
+      parameters:
+        - name: meal
+          in: query
+          description: The name of the meal.
+          required: true
+          schema:
+            $ref: "#/components/schemas/Meal"
+        - name: on
+          in: query
+          description: Meal date for getting the capacity. Defaults to today's date.
+          required: false
+          schema:
+            type: string
+            format: date
+            example: "1998-09-02"
+      responses:
+        '200':
+          description: |
+            The capacities of each mess for the given meal on the given date. Note that
+            each property will be a category, and the array of items will contain each
+            mess' available and maximum capacity.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    propertyNames:
+                      $ref: "#/components/schemas/Category"
+                    additionalProperties:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          mess:
+                            type: string
+                            example: yuktahar
+                          available:
+                            type: integer
+                            example: 28
+                          capacity:
+                            type: integer
+                            example: 420
+        '401':
+          $ref: "#/components/responses/Unauthorized"
+        '500':
+          $ref: "#/components/responses/InternalServerError" 
+
+  /registrations:
+    get:
+      summary: Get registrations
+      tags:
+        - Registrations
+      description: |
+        Gets all registrations (past and upcoming) in a timeframe (max 2 months).
+        Both query parameters are inclusive.
+      parameters:
+        - name: from
+          in: query
+          allowEmptyValue: false
+          required: true
+          schema:
+            type: string
+            format: date
+            example: "2025-01-01"
+        - name: to
+          in: query
+          allowEmptyValue: false
+          required: true
+          schema:
+            type: string
+            format: date
+            example: "2025-02-01"
+      responses:
+        '200':
+          description: A list of registrations.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/MealRegistration"
+        '401':
+          $ref: "#/components/responses/Unauthorized"
+        '500':
+          $ref: "#/components/responses/InternalServerError" 
+    post:
+      summary: Create/update a registration
+      tags:
+        - Registrations
+      description: |
+        **New in v2:** `guests` field.
+
+        Registers the currently logged in user for a meal. If the registration
+        already exists, then it updates it.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                meal_date:
+                  type: string
+                  format: date
+                  example: "1998-09-02"
+                meal_type:
+                  $ref: "#/components/schemas/Meal"
+                meal_mess:
+                  type: string
+                  example: kadamba-nonveg
+                guests:
+                  type: integer
+                  descriptions: |
+                    Number of guests this user is allowed to bring. The maximum number
+                    of allowed guests is definied in the user's attributes.
+                  minimum: 0
+                  required: false
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/MealRegistration"
+        '204':
+          description: The registration has already been completed.
+        '401':
+          $ref: "#/components/responses/Unauthorized"
+        '403':
+          description: |
+            Either the registration window has closed or the mess is
+            full in capacity.
+          content:
+            application/json:
+              schema:
+                allOf:
+                - type: object
+                  properties:
+                    error:
+                      allOf:
+                        - $ref: "#/components/schemas/Error"
+                        - type: object
+                          properties:
+                            code:
+                              type: string
+                              enum:
+                                - window-closed
+                                - capacity-exceeded
+        '404':
+          $ref: "#/components/responses/NotFound"
+        '500':
+          $ref: "#/components/responses/InternalServerError" 
+  /registration:
+    get:
+      summary: Get one registration
+      tags:
+        - Registrations
+      description: |
+        Gets one registration for meal on date.  
+        If meal is not provided, it returns registrations for all meals on that date
+        in an object where key = meal and value = registration (the response body type
+        you see below).  
+        If date is not provided, today is assumed  
+        This endpoint only returns *registered* meals.
+
+        If a registration is missing for some meal, then 404 is returned if that meal
+        is provided in the query string, otherwise, that meal's key will be missing from
+        the returned object.
+      parameters:
+        - name: meal
+          in: query
+          allowEmptyValue: false
+          required: false
+          schema:
+            $ref: "#/components/schemas/Meal"
+        - name: date
+          in: query
+          allowEmptyValue: false
+          required: false
+          schema:
+            type: string
+            format: date
+            example: "1998-09-02"
+      responses:
+        '200':
+          description: The registration.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/MealRegistration"
+        '401':
+          $ref: "#/components/responses/Unauthorized"
+        '404':
+          $ref: "#/components/responses/NotFound"
+        '500':
+          $ref: "#/components/responses/InternalServerError" 
+  /registrations/skipping:
+    post:
+      summary: Set a registration as skipped/unskipped
+      tags:
+        - Registrations
+      description: |
+        **New in v2**
+
+        Sets the meal for a user to skipped/unskipped.
+        Skipping indicates that the user will likely not avail the meal.
+        It is to be used when the user runs out of cancellations for
+        the given time duration. Skipping will still result in the user
+        being charged for the meal.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                meal_date:
+                  type: string
+                  format: date
+                  example: "1998-09-02"
+                meal_type:
+                  $ref: "#/components/schemas/Meal"
+                meal_mess:
+                  type: string
+                  example: kadamba-nonveg
+                skipping:
+                  type: boolean
+                  descriptions: |
+                    To skip the meal or not
+                  required: false
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/MealRegistration"
+        '204':
+          description: The registration has already been completed.
+        '401':
+          $ref: "#/components/responses/Unauthorized"
+        '403':
+          description: |
+            Either the registration window has closed or the mess is
+            full in capacity.
+          content:
+            application/json:
+              schema:
+                allOf:
+                - type: object
+                  properties:
+                    error:
+                      allOf:
+                        - $ref: "#/components/schemas/Error"
+                        - type: object
+                          properties:
+                            code:
+                              type: string
+                              enum:
+                                - window-closed
+                                - capacity-exceeded
+        '404':
+          $ref: "#/components/responses/NotFound"
+        '500':
+          $ref: "#/components/responses/InternalServerError" 
+  /registrations/cancel:
+    post:
+      summary: Cancel a registration
+      tags:
+        - Registrations
+      description: |
+        Cancel a registration for the meal. If the registration
+        is already cancelled, then it does nothing.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                meal_date:
+                  type: string
+                  format: date
+                  example: "1998-09-02"
+                meal_type:
+                  $ref: "#/components/schemas/Meal"
+      responses:
+        '204':
+          description: Success
+        '401':
+          $ref: "#/components/responses/Unauthorized"
+        '403':
+          description: The cancellation window has closed.
+          content:
+            application/json:
+              schema:
+                allOf:
+                - type: object
+                  properties:
+                    error:
+                      allOf:
+                        - $ref: "#/components/schemas/Error"
+                        - type: object
+                          properties:
+                            code:
+                              type: string
+                              const: window-closed
+        '404':
+          $ref: "#/components/responses/NotFound"
+        '424':
+          description: Cannot cancel since no registration exists.
+          content:
+            application/json:
+              schema:
+                allOf:
+                - type: object
+                  properties:
+                    error:
+                      allOf:
+                        - $ref: "#/components/schemas/Error"
+                        - type: object
+                          properties:
+                            code:
+                              type: string
+                              const: not-registered
+        '500':
+          $ref: "#/components/responses/InternalServerError" 
+  /registrations/uncancel:
+    post:
+      summary: Uncancel a registration
+      tags:
+        - Registrations
+      description: |
+        Uncancel a registration for the meal. If the registration
+        is already uncancelled, then it does nothing.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                meal_date:
+                  type: string
+                  format: date
+                  example: "1998-09-02"
+                meal_type:
+                  $ref: "#/components/schemas/Meal"
+      responses:
+        '204':
+          description: Success
+        '401':
+          $ref: "#/components/responses/Unauthorized"
+        '403':
+          description: The uncancellation window has closed.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    allOf:
+                      - $ref: "#/components/schemas/Error"
+                      - type: object
+                        properties:
+                          code:
+                            type: string
+                            const: window-closed
+        '404':
+          $ref: "#/components/responses/NotFound"
+        '424':
+          description: Cannot uncancel since registration was not cancelled.
+          content:
+            application/json:
+              schema:
+                allOf:
+                - type: object
+                  properties:
+                    error:
+                      allOf:
+                        - $ref: "#/components/schemas/Error"
+                        - type: object
+                          properties:
+                            code:
+                              type: string
+                              const: not-cancelled
+        '500':
+          $ref: "#/components/responses/InternalServerError"
+  /registrations/feedback:
+    post:
+      summary: Provide feedback for a meal
+      tags:
+        - Registrations
+        - Feedback
+      description: |
+        Provide anonymous feedback for a meal. If the user is not registered
+        or has not availed this meal, it returns an error.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                meal_date:
+                  type: string
+                  format: date
+                  example: "1998-09-02"
+                meal_type:
+                  $ref: "#/components/schemas/Meal"
+                rating:
+                  type: integer
+                  minimum: 1
+                  maximum: 5
+                remarks:
+                  type: string
+                  required: false
+      responses:
+        '204':
+          description: Success
+        '401':
+          $ref: "#/components/responses/Unauthorized"
+        '409':
+          description: Feedback has already been provided for this meal.
+          content:
+            application/json:
+              schema:
+                allOf:
+                - type: object
+                  properties:
+                    error:
+                      allOf:
+                        - $ref: "#/components/schemas/Error"
+                        - type: object
+                          properties:
+                            code:
+                              type: string
+                              const: already-exists
+        '424':
+          description: Cannot provide feedback since meal was not availed.
+          content:
+            application/json:
+              schema:
+                allOf:
+                - type: object
+                  properties:
+                    error:
+                      allOf:
+                        - $ref: "#/components/schemas/Error"
+                        - type: object
+                          properties:
+                            code:
+                              type: string
+                              const: not-availed
+        '500':
+          $ref: "#/components/responses/InternalServerError" 
+  /registration/rating:
+    get:
+      summary: Get the average rating for a meal
+      tags:
+        - Registrations
+        - Feedback
+      description: |
+        Gets the average and number of ratings for a meal in a mess
+        on date. If the date is not provided, today is assumed. If
+        the mess is not provided, data is returned as an object with
+        the mess IDs as the keys, and the ratings objects as the
+        values.
+
+        If nobody has rated the meal, no rating(s) will be returned.
+        The average rating on meals rated by users ∈ [1,5].
+
+        If the meal's date occurs before the feedback window closes,
+        the feedback will not be returned and a 403 error will be
+        returned instead.
+      parameters:
+        - name: meal
+          in: query
+          allowEmptyValue: false
+          required: true
+          schema:
+            $ref: "#/components/schemas/Meal"
+        - name: mess
+          in: query
+          allowEmptyValue: true
+          required: false
+          schema:
+            type: string
+            example: "kadamba-nonveg"
+        - name: date
+          in: query
+          allowEmptyValue: false
+          required: false
+          schema:
+            type: string
+            format: date
+            example: "1998-09-02"
+      responses:
+        '200':
+          description: The average rating.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schema/MealRating"
+        '401':
+          $ref: "#/components/responses/Unauthorized"
+        '403':
+          $ref: "#/components/responses/Forbidden"
+        '500':
+          $ref: "#/components/responses/InternalServerError" 
+  /registrations/monthly:
+    get:
+      summary: Get monthly registration
+      tags:
+        - Registrations
+      description: |
+        Gets all monthly registrations (past and upcoming) for the current user.
+      parameters:
+        - name: month
+          in: query
+          description: The month registered for. Defaults to the current month.
+          required: false
+          schema:
+            type: integer
+            example: 9
+        - name: year
+          in: query
+          description: The year registered for. Defaults to the current year.
+          required: false
+          schema:
+            type: integer
+            example: 1998
+      responses:
+        '200':
+          description: The monthly registration made.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      registration:
+                        $ref: "#/components/schemas/MonthlyRegistration"
+                      snack_availments:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/SnackAvailment"
+        '401':
+          $ref: "#/components/responses/Unauthorized"
+        '404':
+          $ref: "#/components/responses/NotFound"
+        '500':
+          $ref: "#/components/responses/InternalServerError" 
+    post:
+      summary: Create a monthly registration
+      tags:
+        - Registrations
+      description: |
+        Registers the currently logged in user at a certain mess for a month.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                month:
+                  type: integer
+                  example: 9
+                year:
+                  type: integer
+                  example: 1998
+                mess:
+                  type: string
+                  example: kadamba-nonveg
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/MonthlyRegistration" 
+        '401':
+          $ref: "#/components/responses/Unauthorized"
+        '403':
+          description: |
+            Either the registration window has closed or the mess is
+            full in capacity.
+          content:
+            application/json:
+              schema:
+                allOf:
+                - type: object
+                  properties:
+                    error:
+                      allOf:
+                        - $ref: "#/components/schemas/Error"
+                        - type: object
+                          properties:
+                            code:
+                              type: string
+                              enum:
+                                - window-closed
+                                - capacity-exceeded
+        '409':
+          description: The registration has already been completed.
+          content:
+            application/json:
+              schema:
+                allOf:
+                - type: object
+                  properties:
+                    error:
+                      allOf:
+                        - $ref: "#/components/schemas/Error"
+                        - type: object
+                          properties:
+                            code:
+                              type: string
+                              const: "already-exists"
+        '500':
+          $ref: "#/components/responses/InternalServerError" 
+    delete:
+      summary: Delete a monthly registration
+      tags:
+        - Registrations
+      description: |
+        Deletes the monthly registration, without deleting individual meal registrations for that month.
+      parameters:
+        - name: month
+          in: query
+          description: The month registered for.
+          required: true
+          schema:
+            type: integer
+            example: 9
+        - name: year
+          in: query
+          description: The year registered for.
+          required: true
+          schema:
+            type: integer
+            example: 1998
+      responses:
+        '204':
+          description: Success
+        '401':
+          $ref: "#/components/responses/Unauthorized"
+        '403':
+          description: |
+            The registration window has closed.
+          content:
+            application/json:
+              schema:
+                allOf:
+                - type: object
+                  properties:
+                    error:
+                      allOf:
+                        - $ref: "#/components/schemas/Error"
+                        - type: object
+                          properties:
+                            code:
+                              type: string
+                              const: "window-closed"
+        '404':
+          $ref: "#/components/responses/NotFound"
+        '500':
+          $ref: "#/components/responses/InternalServerError" 
+  /registrations/cancellations:
+    get:
+      summary: Get number of cancelled registrations
+      tags:
+        - Registrations
+      description: |
+        Get the number of cancelled registrations in a month of a year
+      parameters:
+        - name: meal
+          in: query
+          description: The name of the meal.
+          required: true
+          schema:
+            $ref: "#/components/schemas/Meal"
+        - name: year
+          in: query
+          required: false
+          description: The 4-digit year (2000-2098). Defaults to current year.
+          schema:
+            type: integer
+            maximum: 2028
+            minimum: 2000
+        - name: month
+          in: query
+          required: false
+          description: The month of the year (1-12). Defaults to current month.
+          schema:
+            type: integer
+            maximum: 12
+            minimum: 1
+      responses:
+        '200':
+          description: The number.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: integer
+                    maximum: 12
+                    minimum: 1
+                    example: 10
+        '401':
+          $ref: "#/components/responses/Unauthorized"
+        '500':
+          $ref: "#/components/responses/InternalServerError" 
+  /registrations/bill:
+    get:
+      summary: Get the mess bill for a month
+      tags:
+        - Registrations
+        - Billing
+      description: |
+        Get the mess bill for a month of a year. The bill may be projected,
+        i.e. it includes bills for meals that haven't happened yet. Projected
+        bills are cached, since they are expensive to calculate, but the
+        cache is cleared when registrations change. A 404 is returned if
+        registrations have not been opened for that month yet.
+      parameters:
+        - name: year
+          in: query
+          required: false
+          description: The 4-digit year (2000-2098). Defaults to current year.
+          schema:
+            type: integer
+            maximum: 2028
+            minimum: 2000
+        - name: month
+          in: query
+          required: false
+          description: The month of the year (1-12). Defaults to current month.
+          schema:
+            type: integer
+            maximum: 12
+            minimum: 1
+      responses:
+        '200':
+          description: The bill.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      non_projected:
+                        type: integer
+                        example: 1000
+                        description: In paise. Non projected is the definite amount that will be charged.
+                      projected:
+                        type: integer
+                        example: 2000
+                        description: In paise. Projected is the amount that was calculated based on future registrations.
+        '401':
+          $ref: "#/components/responses/Unauthorized"
+        '404':
+          $ref: "#/components/responses/NotFound"
+        '500':
+          $ref: "#/components/responses/InternalServerError" 
+  /extras:
+    get:
+      summary: List available extra items
+      tags:
+        - Extras
+      description: |
+        Lists the available extra items for a meal on a date.  
+        Returns data for all messes
+        If date is not provided, today is assumed.
+
+        Some extras (with the same ID) may be available for
+        multiple meals.
+      parameters:
+        - name: meal
+          in: query
+          allowEmptyValue: false
+          required: true
+          schema:
+            $ref: "#/components/schemas/Meal"
+        - name: date
+          in: query
+          allowEmptyValue: false
+          required: false
+          schema:
+            type: string
+            format: date
+            example: "1998-09-02"
+      responses:
+        '200':
+          description: The extra items.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ExtraItem"
+        '401':
+          $ref: "#/components/responses/Unauthorized"
+        '500':
+          $ref: "#/components/responses/InternalServerError"
+  /registrations/extras:
+    get:
+      summary: Get extra items that have been registered to
+      tags:
+        - Registrations
+        - Extras
+      description: |
+        Lists the extra registrations for a meal on a date.  
+        If date is not provided, today is assumed.
+      parameters:
+        - name: meal
+          in: query
+          allowEmptyValue: false
+          required: true
+          schema:
+            $ref: "#/components/schemas/Meal"
+        - name: date
+          in: query
+          allowEmptyValue: false
+          required: false
+          schema:
+            type: string
+            format: date
+            example: "1998-09-02"
+      responses:
+        '200':
+          description: The extra registrations.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ExtraRegistration"
+        '401':
+          $ref: "#/components/responses/Unauthorized"
+        '500':
+          $ref: "#/components/responses/InternalServerError"
+    post:
+      summary: Create an extra registration
+      tags:
+        - Registrations
+        - Extras
+      description: |
+        Registers the user for an extra item. The user must already have
+        a regular registration at the mess where the extra item is being
+        served for that meal.
+
+        Extra registrations cannot be modified once created. They must be
+        deleted and a new one be created if required.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                extra:
+                  type: string
+                  description: The ID of the extra item to register for
+                meal_date:
+                  type: string
+                  format: date
+                  example: "1998-09-02"
+                meal_type:
+                  $ref: "#/components/schemas/Meal"
+                meal_mess:
+                  type: string
+                  example: kadamba-nonveg
+      responses:
+        '200':
+          description: The extra registrations.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ExtraRegistrationInserted"
+        '401':
+          $ref: "#/components/responses/Unauthorized"
+        '500':
+          $ref: "#/components/responses/InternalServerError"
+    delete:
+      summary: Delete an extra registration
+      tags:
+        - Registrations
+        - Extras
+      description: Removes an extra registration of a user
+      parameters:
+        - name: id
+          in: query
+          allowEmptyValue: false
+          required: true
+          schema:
+            type: string
+            description: ID of the extra registration
+      responses:
+        '200':
+          description: The extra registration.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ExtraRegistration"
+        '401':
+          $ref: "#/components/responses/Unauthorized"
+        '500':
+          $ref: "#/components/responses/InternalServerError"
+
+  /bills:
+    get:
+      summary: Get the breakdown of the mess bill for all months
+      tags:
+        - Billing
+      description: |
+        Get the breakdown of the mess bill for every month that has a non-zero
+        bill. The breakdown includes the cost of the food, any extras the user
+        has registered for, as well as the fixed infrastructure costs added for
+        each month.
+      responses:
+        '200':
+          description: The bill.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        month:
+                          type: integer
+                          example: 3
+                          description: The month number (1-12).
+                        year:
+                          type: integer
+                          example: 2025
+                          description: The year (YYYY).
+                        food_bill:
+                          type: integer
+                          example: 420000
+                          description: In paise. The amount charged for all registered meals.
+                        extras_bill:
+                          type: integer
+                          example: 420000
+                          description: In paise. The amount charged for all registered extra items.
+                        infra_bill:
+                          type: integer
+                          example: 50000
+                          description: In paise. The base amount charged as part of the infrastructure costs.
+        '401':
+          $ref: "#/components/responses/Unauthorized"
+        '500':
+          $ref: "#/components/responses/InternalServerError"
+
+  /config/registration-window:
+    get:
+      summary: Get registration window time
+      tags:
+        - Config
+      description: |
+        Get the allowed registration window time (in seconds).
+      responses:
+        '200':
+          description: The registration window time.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: integer
+                    example: 172800
+        '401':
+          $ref: "#/components/responses/Unauthorized"
+        '500':
+          $ref: "#/components/responses/InternalServerError"
+  /config/cancellation-window:
+    get:
+      summary: Get cancellation window time
+      tags:
+        - Config
+      description: |
+        Get the allowed cancellation window time (in seconds).
+      responses:
+        '200':
+          description: The cancellation window time.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: integer
+                    example: 864000
+        '401':
+          $ref: "#/components/responses/Unauthorized"
+        '500':
+          $ref: "#/components/responses/InternalServerError" 
+  /config/feedback-window:
+    get:
+      summary: Get feedback window time
+      tags:
+        - Config
+        - Feedback
+      description: |
+        Get the allowed feedback window time (in seconds). Note that this window is after the meal, not before.
+      responses:
+        '200':
+          description: The feedback window time.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: integer
+                    example: 86400
+        '401':
+          $ref: "#/components/responses/Unauthorized"
+        '500':
+          $ref: "#/components/responses/InternalServerError" 
+  /config/extras-window:
+    get:
+      summary: Get extra registration window time
+      tags:
+        - Config
+      description: |
+        Get the allowed extra registration window time (in seconds).
+      responses:
+        '200':
+          description: The extra registration window time.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: integer
+                    example: 42000
+        '401':
+          $ref: "#/components/responses/Unauthorized"
+        '500':
+          $ref: "#/components/responses/InternalServerError"
+  /config/registration-max-date:
+    get:
+      summary: Get registration max date
+      tags:
+        - Config
+      description: |
+        Get the max date allowed for registration.
+      responses:
+        '200':
+          description: The registration max date.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: string
+                    format: date
+                    example: "2098-09-02"
+        '401':
+          $ref: "#/components/responses/Unauthorized"
+        '500':
+          $ref: "#/components/responses/InternalServerError" 
+  /config/max-cancellations:
+    get:
+      summary: Get max cancellations per meal
+      tags:
+        - Config
+      description: |
+        Get the max cancellations per meal
+      parameters:
+        - name: meal
+          in: query
+          description: The name of the meal.
+          required: true
+          schema:
+            $ref: "#/components/schemas/Meal"
+      responses:
+        '200':
+          description: The max cancellations.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: integer
+                    example: 5
+        '401':
+          $ref: "#/components/responses/Unauthorized"
+        '500':
+          $ref: "#/components/responses/InternalServerError" 
+  /config/meal-timings:
+    get:
+      summary: Get meal timings
+      tags:
+        - Config
+      description: |
+        Get the timings of meals in each mess
+      parameters:
+        - name: on
+          in: query
+          description: The date for which the timings should be fetched. Defaults to today's date.
+          required: false
+          schema:
+            type: string
+            format: date
+            example: "1998-09-02"
+      responses:
+        '200':
+          description: The timings of meals in each mess.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    propertyNames:
+                      type: string
+                      description: The ID of a mess.
+                    additionalProperties:
+                      type: array
+                      items:
+                        $ref: "#/components/schemas/MealTiming"
+        '401':
+          $ref: "#/components/responses/Unauthorized"
+        '500':
+          $ref: "#/components/responses/InternalServerError" 
+
+  /preferences:
+    get:
+      summary: Fetch all user preferences
+      tags:
+        - Preferences
+      description: |
+        Get all the user's preferences.
+      responses:
+        '200':
+          description: The list of preferences.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/UserPreferences"
+        '401':
+          $ref: "#/components/responses/Unauthorized"
+        '500':
+          $ref: "#/components/responses/InternalServerError"
+    put:
+      summary: Update all user preferences
+      tags:
+        - Preferences
+      description: |
+        Set the user's preferences.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: The value to set for each preference must be in the request body.
+              $ref: "#/components/schemas/UserPreferences"
+      responses:
+        '204':
+          description: The preferences were updated successfully.
+        '400':
+          $ref: "#/components/responses/BadRequest"
+        '401':
+          $ref: "#/components/responses/Unauthorized"
+        '500':
+          $ref: "#/components/responses/InternalServerError"
+
+components:
+  schemas:
+    Category:
+      type: string
+      enum:
+        - registered
+        - unregistered
+        - guest
+        - extra
+    Meal:
+      type: string
+      enum:
+        - breakfast
+        - lunch
+        - snacks
+        - dinner
+    Day:
+      required: false
+      type:
+        - string
+        - null
+      enum:
+        - Monday
+        - Tuesday
+        - Wednesday
+        - Thursday
+        - Friday
+        - Saturday
+        - Sunday
+      nullable: true
+    MessInfo:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        short_name:
+          type: string
+        color:
+          type: string
+          description: |
+            The color is an OKLCH value formatted as "l c h", i.e. the LCH values
+            separated by a space. There is no alpha value in the color.
+
+            To use it in CSS, you can do `color: oklch(mess.color)`,
+            where `mess.color` is the mess's color.
+        tags:
+          $ref: "#/components/schemas/Tags"
+        rating:
+          type: number
+          format: float
+          description: The average rating of the mess, according to user feedback.
+
+    Tags:
+      type: integer
+      description: |
+        This tag governs who is allowed to register to a mess, as
+        well as what rates and capacities apply to them.
+
+        It is used to separate users into different classes, with
+        the goal of allowing users who are part of a class to
+        register for a mess of that class with the rate for that class.
+        Users can be a part of multiple classes.
+        
+        It is a 2-bit bit-flag described like so:
+
+        | Bits | Description     |
+        | :--- | :-------------- |
+        | 0    | Mess of Class-A |
+        | 1    | Mess of Class-B |
+
+        In IIIT, Class-A is a student mess, and Class-B is a mess for staff.
+
+        A user is allowed to register to the mess if this condition passes:
+        ```
+        user_tag & mess_tag != 0
+        ```
+    MessRate:
+        type: object
+        properties:
+          category:
+            $ref: "#/components/schemas/Category"
+          meal:
+            $ref: "#/components/schemas/Meal"
+          rate:
+            type: integer
+            example: 4210
+          day:
+            required: false
+            $ref: "#/components/schemas/Day"
+    MessCapacity:
+        type: object
+        properties:
+          category:
+            $ref: "#/components/schemas/Category"
+          meal:
+            $ref: "#/components/schemas/Meal"
+          capacity:
+            type: integer
+            example: 650
+          day:
+            required: false
+            $ref: "#/components/schemas/Day"
+    MealRegistration:
+      type: object
+      properties:
+        meal_date:
+          type: string
+          format: date
+          example: "1998-09-02"
+        meal_type:
+          $ref: "#/components/schemas/Meal"
+        meal_mess:
+          type: string
+          example: kadamba-nonveg
+        category:
+          $ref: "#/components/schemas/Category"
+        user_id:
+          type: string
+          example: "2024101010"
+        registered_at:
+          type: string
+          format: date-time
+          description: The time this registration was created/updated.
+        cancelled_at:
+          type: string
+          required: false
+          format: date-time
+          description: "`null` if the meal isn't cancelled"
+          example: 2024-10-16T16-46-42
+        availed_at:
+          type: string
+          required: false
+          format: date-time
+          description: "`null` if the meal isn't availed"
+          example: 2024-10-16T16-46-42
+        availed_price:
+          type: integer
+          required: false
+          description: "`null` if the meal isn't availed. In paise"
+          example: 4210
+        monthly_reg:
+          type: string
+          required: false
+          description: |
+            The ID of the monthly registration, if this meal was
+            availed as a monthly registration.
+        metadata:
+          type: object
+          required: false
+    ExtraItem:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+          description: May be empty
+        rate:
+          type: number
+          description: Price of the item in paise
+        mess:
+          type: string
+          example: kadamba-nonveg
+        food_tags:
+          type: boolean
+          description: Bit 0 -> is set if the food is nonveg
+    ExtraRegistrationInserted:
+      type: object
+      properties:
+        id:
+          type: string
+        extra:
+          type: string
+          description: ID of the extra item this registration corresponds to
+        meal_date:
+          type: string
+          format: date
+          example: "1998-09-02"
+        meal_type:
+          $ref: "#/components/schemas/Meal"
+        meal_mess:
+          type: string
+          example: kadamba-nonveg
+        user_id:
+          type: string
+          example: "2024101010"
+        registered_at:
+          type: string
+          format: date-time
+          description: The time this registration was created/updated.
+        availed_at:
+          type: string
+          required: false
+          format: date-time
+          description: "`null` if the registration isn't availed"
+          example: 2024-10-16T16-46-42
+        availed_price:
+          type: integer
+          required: false
+          description: "`null` if the registration isn't availed. In paise"
+          example: 4210
+        is_unregistered:
+          type: boolean
+          description: If this registration was made on-spot
+    ExtraRegistration:
+      allOf:
+        - $ref: "#/components/schemas/ExtraRegistrationInserted"
+        - type: object
+          properties:
+            extra_name:
+              type: string
+              description: Name of the extra item
+            extra_description:
+              type: string
+              description: Description of the extra item
+            extra_rate:
+              type: string
+              description: Price of the extra item in paise
+            extra_food_tags:
+              type: string
+              description: Bit 0 -> set if the food is nonveg
+    MonthlyRegistration:
+      type: object
+      properties:
+        id:
+          type: string
+        meal_mess:
+          type: string
+          example: yuktahar
+        user_id:
+          type: string
+          example: "2024101010"
+        month:
+          type: integer
+          maximum: 12
+          minimum: 1
+          description: Month of the registration (1-12)
+          example: 3
+        year:
+          type: integer
+          maximum: 2098
+          minimum: 2000
+          description: 4-digit year of the registration
+          example: 1998
+    SnackAvailment:
+      type: object
+      properties:
+        meal_date:
+          type: string
+          format: date
+          example: "1998-09-02"
+        meal_mess:
+          type: string
+          example: kadamba-nonveg
+        user_id:
+          type: string
+          example: "2024101010"
+        availed_at:
+          type: string
+          format: date-time
+          description: The time this snack was availed.
+        monthly_reg:
+          type: string
+          required: false
+          description: ID of the associated monthly registration (if any)
+    UserPreferences:
+      type: object
+      properties:
+        notify_not_registered:
+          type: boolean
+          required: true
+          description: Sends a reminder one day before the registration deadline
+        notify_malloc_happened:
+          type: boolean
+          required: true
+          description: Sends an email with meals if you've been randomly allocated
+        auto_reset_token_daily:
+          type: boolean
+          required: true
+          description: Resets the QR code automatically at 02:00 every day
+        enable_unregistered:
+          type: boolean
+          required: true
+          description: Allow availing meals on-the-spot at unregistered rates
+        nag_for_feedback:
+          type: boolean
+          required: true
+          description: Prompts for feedback after every availed meal
+    MealTiming:
+      type: object
+      description: Describes the timing for a single meal.
+      properties:
+        meal:
+          type: string
+          description: The name of the meal.
+          enum: [breakfast, lunch, snacks, dinner]
+          example: "breakfast"
+        start_time:
+          type: string
+          format: time
+          description: The start time for the meal service in HH:mm:ss format.
+          example: "06:30:00"
+        end_time:
+          type: string
+          format: time
+          description: The end time for the meal service in HH:mm:ss format.
+          example: "10:30:00"
+    MealRating:
+        type: object
+        properties:
+          rating:
+            type: number
+            format: float
+            example: 4.20
+          count:
+            type: integer
+            example: 69
+
+    Error:
+      type: object
+      properties:
+        code:
+          $ref: "#/components/schemas/ErrorCode"
+        message:
+          type: string
+          description: An error message.
+    ErrorCode:
+      type: string
+      description: Error code (identifier)
+      enum:       
+        - "bad-request"
+        - "unauthorized"
+        - "forbidden"
+        - "not-found"
+        - "already-exists"
+        - "invalid-range"
+        - "internal-server-error"
+        - "no-redirect-url"
+        - "window-closed"
+        - "not-registered"
+        - "not-cancelled"
+        - "not-availed"
+        - "sync-failed"
+        - "capacity-exceeded"
+        - "cancellation-limit-exceeded"
+        - "too-far-ahead"
+    AuthKey:
+      type: object
+      properties:
+        name:
+          type: string
+          description: The API key common name.
+        user_id:
+          type: string
+          description: The user's ID
+        created_at:
+          type: string
+          format: date-time
+          example: 2024-10-16T16-46-42
+        expires_at:
+          type: string
+          format: date-time
+          example: 2024-10-16T16-46-42
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          description: The unique ID of the user.
+        name:
+          type: string
+          description: The user's full name.
+        roll_number:
+          type: string
+          required: false
+          description: The user's roll number.
+        email:
+          type: string
+          description: The user's institute-provided email address.
+        last_login_at:
+          type: string
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+        token:
+          type: string
+          description: The token provided to each user to verify themselves at the messes.
+        attributes:
+          type: string
+          description: |
+            The user's attributes. This is an 8-bit bit-flag described like so:
+
+            | Bits | Description |
+            | :--- | :---------- |
+            | 0    | 1 if the user will be randomly allocated a meal when they don't register. |
+            | 1    | 1 if the user is allowed to log in using a password. |
+            | 2    | 1 if the user is allowed to log in using CAS. |
+            | 3    | Reserved. |
+            | 4-7  | A 4-bit number for the max. number of guests the user is allowed to bring with their registration |
+
+            If the flag is set to 0, it essentially has the function of disabling the user's account.
+        tags:
+          $ref: "#/components/schemas/Tags"
+  responses:
+    Unauthorized:
+      description: The user is not logged in.
+      content:
+        application/json:
+          schema:
+            allOf:
+            - type: object
+              properties:
+                error:
+                  allOf:
+                    - $ref: "#/components/schemas/Error"
+                    - type: object
+                      properties:
+                        code:
+                          type: string
+                          const: "unauthorized"
+    NotFound:
+      description: The requested entity was not found.
+      content:
+        application/json:
+          schema:
+            allOf:
+            - type: object
+              properties:
+                error:
+                  allOf:
+                    - $ref: "#/components/schemas/Error"
+                    - type: object
+                      properties:
+                        code:
+                          type: string
+                          const: "not-found"
+    BadRequest:
+      description: Sent request parameters are not valid.
+      content:
+        application/json:
+          schema:
+            allOf:
+            - type: object
+              properties:
+                error:
+                  allOf:
+                    - $ref: "#/components/schemas/Error"
+                    - type: object
+                      properties:
+                        code:
+                          type: string
+                          const: "bad-request"
+    Forbidden:
+      description: Performing this action is not allowed
+      content:
+        application/json:
+          schema:
+            allOf:
+            - type: object
+              properties:
+                error:
+                  allOf:
+                    - $ref: "#/components/schemas/Error"
+                    - type: object
+                      properties:
+                        code:
+                          type: string
+                          const: "forbidden"
+    InternalServerError:
+      description: An internal server error occured.
+      content:
+        application/json:
+          schema:
+            allOf:
+            - type: object
+              properties:
+                error:
+                  allOf:
+                    - $ref: "#/components/schemas/Error"
+                    - type: object
+                      properties:
+                        code:
+                          type: string
+                          const: "internal-server-error"

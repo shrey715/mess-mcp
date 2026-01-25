@@ -1,0 +1,137 @@
+@import "tailwindcss";
+
+:root {
+  /* Solar Sunset Palette */
+  --bg-page: #FDFBF7;
+  /* Very warm off-white */
+  --bg-card: #FFFFFF;
+
+  --navy: #0D1164;
+  --purple: #640D5F;
+  --pink: #EA2264;
+  --coral: #F78D60;
+
+  --text-primary: #0D1164;
+  --text-secondary: #6B7280;
+  --text-tertiary: #9CA3AF;
+
+  --border-subtle: #F3F4F6;
+  --border-focus: #EA2264;
+
+  --shadow-sm: 0 1px 2px 0 rgb(13 17 100 / 0.05);
+  --shadow-md: 0 4px 6px -1px rgb(13 17 100 / 0.08);
+  --shadow-lg: 0 10px 15px -3px rgb(13 17 100 / 0.1);
+}
+
+body {
+  background-color: var(--bg-page);
+  color: var(--text-primary);
+  font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+  /* Sharper, modern font if avail, fallback to Inter */
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Polished Card */
+.sunset-card {
+  background: var(--bg-card);
+  border: 1px solid rgba(13, 17, 100, 0.05);
+  border-radius: 16px;
+  box-shadow: var(--shadow-sm);
+  transition: all 0.2s ease;
+}
+
+.sunset-card:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+
+/* Gradients */
+.bg-gradient-sunset {
+  background: linear-gradient(135deg, var(--pink) 0%, var(--coral) 100%);
+}
+
+.text-gradient-sunset {
+  background: linear-gradient(135deg, var(--pink) 0%, var(--coral) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Buttons */
+.btn-sunset-primary {
+  background: var(--navy);
+  color: white;
+  border-radius: 12px;
+  padding: 10px 20px;
+  font-weight: 600;
+  font-size: 0.95rem;
+  letter-spacing: 0.01em;
+  transition: all 0.2s;
+  border: none;
+  box-shadow: 0 2px 8px rgba(13, 17, 100, 0.2);
+}
+
+.btn-sunset-primary:hover {
+  background: var(--purple);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(13, 17, 100, 0.3);
+}
+
+.btn-sunset-primary:active {
+  transform: translateY(0);
+}
+
+.btn-sunset-secondary {
+  background: white;
+  color: var(--navy);
+  border: 1px solid rgba(13, 17, 100, 0.1);
+  border-radius: 12px;
+  padding: 10px 20px;
+  font-weight: 600;
+  font-size: 0.95rem;
+  transition: all 0.2s;
+}
+
+.btn-sunset-secondary:hover {
+  border-color: var(--navy);
+  background: #f8f9ff;
+}
+
+/* Badges */
+.badge-sunset {
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* Clean Inputs */
+.input-clean {
+  background: white;
+  border: 1px solid #E5E7EB;
+  border-radius: 12px;
+  padding: 12px 16px;
+  color: var(--navy);
+  font-size: 0.95rem;
+  transition: all 0.2s;
+}
+
+.input-clean:focus {
+  outline: none;
+  border-color: var(--pink);
+  box-shadow: 0 0 0 3px rgba(234, 34, 100, 0.1);
+}
+
+/* Navigation - Modern Tab Bar */
+.nav-pill {
+  color: var(--text-secondary);
+  transition: all 0.2s;
+  border-radius: 12px;
+}
+
+.nav-pill.active {
+  background: #FFF0F5;
+  /* Light pink tint */
+  color: var(--pink);
+}
