@@ -1,16 +1,37 @@
-// Chat UI Logic
+// Elements
 const chatContainer = document.getElementById('chatContainer');
 const messageInput = document.getElementById('messageInput');
-const sendButton = document.getElementById('sendButton');
-const clearButton = document.getElementById('clearButton');
-const addMcpButton = document.getElementById('addMcpButton');
-const statusText = document.getElementById('statusText');
+const sendBtn = document.getElementById('sendBtn');
+const clearChatBtn = document.getElementById('clearChatBtn');
+const toggleMcpBtn = document.getElementById('toggleMcpBtn');
+const mcpDrawer = document.getElementById('mcpDrawer');
+const openAddMcpBtn = document.getElementById('addMcpBtn'); // In Drawer
+const addMcpModal = document.getElementById('addMcpModal');
+const closeModalBtn = document.getElementById('closeModalBtn');
+const cancelMcpBtn = document.getElementById('cancelMcpBtn');
+const saveMcpBtn = document.getElementById('saveMcpBtn');
+const mcpList = document.getElementById('mcpList');
 
+// Form Elements
+const newMcpName = document.getElementById('newMcpName');
+const newMcpType = document.getElementById('newMcpType');
+const newMcpCommand = document.getElementById('newMcpCommand');
+const newMcpArgs = document.getElementById('newMcpArgs');
+const newMcpUrl = document.getElementById('newMcpUrl');
+const stdioFields = document.getElementById('stdioFields');
+const sseFields = document.getElementById('sseFields');
+const modalError = document.getElementById('modalError');
+
+// State
 let conversationHistory = [];
 let isTyping = false;
+let mcpServers = [];
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
+  loadMcpList();
+
+  // Event Listeners
   messageInput.addEventListener('keypress', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -18,154 +39,386 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  sendButton.addEventListener('click', sendMessage);
-  clearButton.addEventListener('click', clearChat);
-  addMcpButton.addEventListener('click', showAddMcpDialog);
+  sendBtn.addEventListener('click', sendMessage);
+  clearChatBtn.addEventListener('click', clearChat);
+  toggleMcpBtn.addEventListener('click', () => mcpDrawer.classList.toggle('show'));
+  openAddMcpBtn.addEventListener('click', openAddMcpModal);
+  closeModalBtn.addEventListener('click', closeAddMcpModal);
+  cancelMcpBtn.addEventListener('click', closeAddMcpModal);
+  saveMcpBtn.addEventListener('click', saveMcpServer);
 
-  // Test bridge availability
+  newMcpType.addEventListener('change', () => {
+    if (newMcpType.value === 'stdio') {
+      stdioFields.style.display = 'block';
+      sseFields.style.display = 'none';
+    } else {
+      stdioFields.style.display = 'none';
+      sseFields.style.display = 'block';
+    }
+  });
+
+  // Check Orchestrator Bridge
   if (window.bridge) {
     console.log('Bridge API available');
-    statusText.textContent = 'Connected to Orchestrator';
-  } else {
-    console.log('Bridge API not available - running standalone');
-    statusText.textContent = 'Standalone Mode';
   }
 });
 
+// MCP Management
+async function loadMcpList() {
+  try {
+    const response = await fetch('http://localhost:3001/list-mcps');
+    const data = await response.json();
+    mcpServers = data.mcps;
+    renderMcpList();
+  } catch (err) {
+    console.error('Failed to load MCP list:', err);
+  }
+}
+
+function renderMcpList() {
+  mcpList.innerHTML = '';
+
+  mcpServers.forEach(server => {
+    const item = document.createElement('div');
+    item.className = 'mcp-item';
+    item.innerHTML = `
+      <div style="display: flex; align-items: center; gap: 0.75rem;">
+        <span class="mcp-status-dot ${server.connected ? 'connected' : 'disconnected'}"></span>
+        <div>
+          <div style="font-weight: 500; font-size: 0.875rem;">${server.name}</div>
+          <div style="font-size: 0.75rem; color: var(--text-muted);">${server.type.toUpperCase()} • ${server.toolCount} tools</div>
+        </div>
+      </div>
+      <button class="mcp-delete-btn" onclick="deleteMcpServer('${server.name}')" title="Remove Server">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M18 6L6 18M6 6l12 12"/>
+        </svg>
+      </button>
+    `;
+    mcpList.appendChild(item);
+  });
+}
+
+function openAddMcpModal() {
+  addMcpModal.classList.add('show');
+  modalError.style.display = 'none';
+  newMcpName.value = '';
+  newMcpCommand.value = '';
+  newMcpArgs.value = '';
+  newMcpUrl.value = '';
+}
+
+function closeAddMcpModal() {
+  addMcpModal.classList.remove('show');
+}
+
+async function saveMcpServer() {
+  const name = newMcpName.value.trim();
+  const type = newMcpType.value;
+  const command = newMcpCommand.value.trim();
+  const args = newMcpArgs.value.trim();
+  const url = newMcpUrl.value.trim();
+
+  if (!name) return showError('Name is required');
+  if (type === 'stdio' && !command) return showError('Command is required');
+  if (type === 'sse' && !url) return showError('URL is required');
+
+  saveMcpBtn.disabled = true;
+  saveMcpBtn.textContent = 'Connecting...';
+
+  try {
+    const payload = {
+      name,
+      type: type === 'sse' ? 'http' : 'stdio',
+    };
+
+    if (type === 'stdio') {
+      payload.command = command;
+      payload.args = args ? args.split(' ') : [];
+    } else {
+      payload.url = url;
+    }
+
+    const response = await fetch('http://localhost:3001/add-mcp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      closeAddMcpModal();
+      loadMcpList();
+    } else {
+      showError(data.error);
+    }
+  } catch (err) {
+    showError(err.message);
+  } finally {
+    saveMcpBtn.disabled = false;
+    saveMcpBtn.textContent = 'Connect Server';
+  }
+}
+
+async function deleteMcpServer(name) {
+  if (!confirm(`Remove ${name} server?`)) return;
+
+  try {
+    const response = await fetch('http://localhost:3001/remove-mcp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name })
+    });
+
+    const data = await response.json();
+    if (data.success) {
+      loadMcpList();
+    } else {
+      alert(data.error);
+    }
+  } catch (err) {
+    console.error('Error deleting MCP:', err);
+  }
+}
+
+// Make delete global so onclick works
+window.deleteMcpServer = deleteMcpServer;
+
+function showError(msg) {
+  modalError.textContent = msg;
+  modalError.style.display = 'block';
+}
+
+// Chat Functions
 function clearChat() {
-  // Clear conversation history
   conversationHistory = [];
-  
-  // Clear chat container and show welcome message
   chatContainer.innerHTML = `
     <div class="welcome-message">
-      <h2>Welcome to IIIT AI Assistant! 👋</h2>
-      <p>I'm here to help you with everything IIIT-related. I have access to intranet policies, mess information, and Moodle data.</p>
+      <h2>How can I help you today?</h2>
+      <p>I can assist with IIIT policies, mess menus, Moodle assignments, and more.</p>
       
       <div class="capabilities">
         <div class="capability-card">
-          <h3>📚 Intranet</h3>
-          <p>Academic policies, guidelines, and procedures</p>
+          <span class="capability-icon">📚</span>
+          <h3>Intranet</h3>
+          <p>Search academic policies & rules</p>
         </div>
         <div class="capability-card">
-          <h3>🍽️ Mess</h3>
-          <p>Menu, timings, and mess management</p>
+          <span class="capability-icon">🍽️</span>
+          <h3>Mess</h3>
+          <p>Check menus & manage registration</p>
         </div>
         <div class="capability-card">
-          <h3>📖 Moodle</h3>
-          <p>Course info, assignments, and deadlines</p>
+          <span class="capability-icon">📝</span>
+          <h3>Moodle</h3>
+          <p>Track assignments & deadlines</p>
         </div>
       </div>
     </div>
   `;
-  
-  console.log('Chat history cleared');
 }
 
 async function sendMessage() {
   const message = messageInput.value.trim();
   if (!message || isTyping) return;
 
-  // Clear input
   messageInput.value = '';
-  messageInput.focus();
-
-  // Add user message to chat
   addMessage(message, 'user');
 
-  // Add to history
-  conversationHistory.push({
-    role: 'user',
-    content: message
-  });
+  conversationHistory.push({ role: 'user', content: message });
 
-  // Show typing indicator
   isTyping = true;
-  sendButton.disabled = true;
-  const typingId = showTypingIndicator();
+  sendBtn.disabled = true;
+
+  // Create assistant message placeholder
+  const assistantMsgId = `msg-${Date.now()}`;
+  createAssistantMessage(assistantMsgId);
+  updateStatus('Thinking...');
 
   try {
-    // Send to backend
     const response = await fetch('http://localhost:3001/chat', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        message: message,
+        message,
         history: conversationHistory
       })
     });
 
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let assistantResponse = '';
+    let mcpCalls = [];
+    let currentToolDiv = null;
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      const chunk = decoder.decode(value);
+      const lines = chunk.split('\n\n');
+
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          try {
+            const data = JSON.parse(line.slice(6));
+
+            if (data.type === 'thinking') {
+              updateStatus(data.detail);
+              // If thinking detail implies a new tool usage, maybe show a small indicator or log
+              // For now, we update the status text
+            } else if (data.type === 'tool_call') {
+              currentToolDiv = addToolCallLog(assistantMsgId, data.name, data.args);
+              mcpCalls.push(data.name);
+            } else if (data.type === 'tool_result') {
+              if (currentToolDiv) {
+                updateToolResult(currentToolDiv, data.result);
+                currentToolDiv = null;
+              }
+            } else if (data.type === 'content') {
+              assistantResponse += data.text;
+              appendToMessage(assistantMsgId, assistantResponse);
+            } else if (data.type === 'done') {
+              updateStatus('Connected');
+            } else if (data.type === 'error') {
+              appendToMessage(assistantMsgId, `\n\n**Error:** ${data.error}`);
+            }
+          } catch (e) {
+            console.error('Error parsing SSE:', e, line);
+          }
+        }
+      }
     }
 
-    const data = await response.json();
-    
-    // Remove typing indicator
-    removeTypingIndicator(typingId);
+    conversationHistory.push({ role: 'assistant', content: assistantResponse });
 
-    // Add assistant response
-    addMessage(data.response, 'assistant', data.mcpCalls);
-
-    // Update history
-    conversationHistory.push({
-      role: 'assistant',
-      content: data.response
-    });
-
-    // Notify other applets if bridge is available
     if (window.bridge) {
       window.bridge.send('*', {
         type: 'CHAT_MESSAGE',
         payload: {
           userMessage: message,
-          assistantResponse: data.response,
-          mcpCalls: data.mcpCalls
+          assistantResponse: assistantResponse,
+          mcpCalls: mcpCalls
         }
       });
     }
 
   } catch (error) {
     console.error('Error:', error);
-    removeTypingIndicator(typingId);
-    addMessage('Sorry, I encountered an error. Please make sure the backend server is running on port 3001.', 'assistant');
+    appendToMessage(assistantMsgId, 'Sorry, I encountered an error. Please make sure the backend server is running on port 3001.');
   } finally {
     isTyping = false;
-    sendButton.disabled = false;
+    sendBtn.disabled = false;
+    updateStatus('Connected');
   }
 }
 
-function addMessage(content, role, mcpInfo = null) {
-  // Remove welcome message if it exists
+function updateStatus(text) {
+  const statusText = document.getElementById('statusText'); // Assume this exists in header
+  if (statusText) statusText.textContent = text;
+}
+
+function createAssistantMessage(id) {
   const welcomeMessage = chatContainer.querySelector('.welcome-message');
-  if (welcomeMessage) {
-    welcomeMessage.remove();
-  }
+  if (welcomeMessage) welcomeMessage.remove();
+
+  const messageDiv = document.createElement('div');
+  messageDiv.className = `message assistant`;
+  messageDiv.id = id;
+
+  const avatar = document.createElement('div');
+  avatar.className = 'avatar';
+  avatar.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4"/><line x1="8" y1="16" x2="8" y2="16"/><line x1="16" y1="16" x2="16" y2="16"/></svg>';
+
+  const messageContent = document.createElement('div');
+  messageContent.className = 'message-content';
+
+  // Container for thinking/tools
+  const toolsContainer = document.createElement('div');
+  toolsContainer.className = 'tools-container';
+  messageContent.appendChild(toolsContainer);
+
+  const textDiv = document.createElement('div');
+  textDiv.className = 'text-content';
+  textDiv.innerHTML = '<span class="cursor"></span>'; // Blinking cursor initially
+  messageContent.appendChild(textDiv);
+
+  messageDiv.appendChild(avatar);
+  messageDiv.appendChild(messageContent);
+
+  chatContainer.appendChild(messageDiv);
+  chatContainer.scrollTop = chatContainer.scrollHeight;
+}
+
+function addToolCallLog(msgId, toolName, args) {
+  const msgDiv = document.getElementById(msgId);
+  const toolsContainer = msgDiv.querySelector('.tools-container');
+
+  const details = document.createElement('details');
+  details.className = 'thinking-step';
+  details.open = true; // Open by default while running
+
+  const summary = document.createElement('summary');
+  summary.innerHTML = `Running <code>${toolName}</code>...`;
+
+  const content = document.createElement('div');
+  content.className = 'thinking-content';
+  content.innerHTML = `<pre>${JSON.stringify(args, null, 2)}</pre>`;
+
+  details.appendChild(summary);
+  details.appendChild(content);
+  toolsContainer.appendChild(details);
+
+  return details;
+}
+
+function updateToolResult(detailsElement, result) {
+  detailsElement.open = false; // Collapse when done
+  const summary = detailsElement.querySelector('summary');
+  summary.innerHTML = `✓ Used <code>${summary.querySelector('code').textContent}</code>`;
+  summary.classList.add('completed');
+
+  const content = detailsElement.querySelector('.thinking-content');
+  // Append result if needed, or replace inputs
+  // content.innerHTML += `<div class="result-label">Result:</div><pre>${JSON.stringify(result, null, 2)}</pre>`;
+}
+
+function appendToMessage(msgId, text) {
+  const msgDiv = document.getElementById(msgId);
+  const textDiv = msgDiv.querySelector('.text-content');
+
+  // Remove cursor temporarily to update text
+  const currentHTML = textDiv.innerHTML.replace('<span class="cursor"></span>', '');
+  const newHTML = formatMessage(text); // Re-format entire text? Or append?
+  // Re-formatting entire text is safer for markdown consistency but slower for huge text.
+  // For now, let's re-format.
+
+  textDiv.innerHTML = newHTML + '<span class="cursor"></span>';
+  chatContainer.scrollTop = chatContainer.scrollHeight;
+}
+
+function addMessage(content, role) {
+  const welcomeMessage = chatContainer.querySelector('.welcome-message');
+  if (welcomeMessage) welcomeMessage.remove();
 
   const messageDiv = document.createElement('div');
   messageDiv.className = `message ${role}`;
 
   const avatar = document.createElement('div');
   avatar.className = 'avatar';
-  avatar.textContent = role === 'user' ? 'U' : '🤖';
+  avatar.innerHTML = role === 'user' ?
+    '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>' :
+    '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4"/><line x1="8" y1="16" x2="8" y2="16"/><line x1="16" y1="16" x2="16" y2="16"/></svg>';
 
   const messageContent = document.createElement('div');
   messageContent.className = 'message-content';
 
-  // Add MCP info if available
-  if (mcpInfo && mcpInfo.length > 0) {
-    const mcpDiv = document.createElement('div');
-    mcpDiv.className = 'mcp-info';
-    mcpDiv.textContent = `📡 Used: ${mcpInfo.join(', ')}`;
-    messageContent.appendChild(mcpDiv);
-  }
-
-  // Format content (basic markdown support)
-  const formattedContent = formatMessage(content);
   const textDiv = document.createElement('div');
-  textDiv.innerHTML = formattedContent;
+  textDiv.className = 'text-content';
+  textDiv.innerHTML = formatMessage(content);
   messageContent.appendChild(textDiv);
 
   messageDiv.appendChild(avatar);
@@ -176,8 +429,10 @@ function addMessage(content, role, mcpInfo = null) {
 }
 
 function formatMessage(text) {
+  if (!text) return '';
+
   // Basic markdown formatting
-  let formatted = text
+  return text
     // Code blocks
     .replace(/```(\w+)?\n([\s\S]*?)```/g, '<pre><code>$2</code></pre>')
     // Inline code
@@ -188,129 +443,4 @@ function formatMessage(text) {
     .replace(/\*([^*]+)\*/g, '<em>$1</em>')
     // Line breaks
     .replace(/\n/g, '<br>');
-
-  return formatted;
 }
-
-function showTypingIndicator() {
-  const typingDiv = document.createElement('div');
-  typingDiv.className = 'message assistant';
-  typingDiv.id = `typing-${Date.now()}`;
-
-  const avatar = document.createElement('div');
-  avatar.className = 'avatar';
-  avatar.textContent = '🤖';
-
-  const messageContent = document.createElement('div');
-  messageContent.className = 'message-content';
-
-  const typingIndicator = document.createElement('div');
-  typingIndicator.className = 'typing-indicator';
-  typingIndicator.innerHTML = '<span></span><span></span><span></span>';
-
-  messageContent.appendChild(typingIndicator);
-  typingDiv.appendChild(avatar);
-  typingDiv.appendChild(messageContent);
-
-  chatContainer.appendChild(typingDiv);
-  chatContainer.scrollTop = chatContainer.scrollHeight;
-
-  return typingDiv.id;
-}
-
-function removeTypingIndicator(id) {
-  const typingDiv = document.getElementById(id);
-  if (typingDiv) {
-    typingDiv.remove();
-  }
-}
-
-// Add MCP Dialog
-function showAddMcpDialog() {
-  const dialogHtml = `
-    <div id="mcpDialog" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); display: flex; align-items: center; justify-content: center; z-index: 1000;">
-      <div style="background: #1a1a1a; padding: 2rem; border-radius: 1rem; max-width: 500px; width: 90%;">
-        <h2 style="color: #fff; margin-bottom: 1.5rem;">Add Custom MCP Server</h2>
-        
-        <div style="margin-bottom: 1rem;">
-          <label style="display: block; color: #a1a1aa; margin-bottom: 0.5rem; font-size: 0.875rem;">Server Name</label>
-          <input type="text" id="mcpName" placeholder="my-custom-mcp" style="width: 100%; padding: 0.75rem; background: #27272a; border: 1px solid #3f3f46; border-radius: 0.5rem; color: #fff; font-size: 1rem;">
-        </div>
-        
-        <div style="margin-bottom: 1rem;">
-          <label style="display: block; color: #a1a1aa; margin-bottom: 0.5rem; font-size: 0.875rem;">Command</label>
-          <input type="text" id="mcpCommand" placeholder="python3" value="python3" style="width: 100%; padding: 0.75rem; background: #27272a; border: 1px solid #3f3f46; border-radius: 0.5rem; color: #fff; font-size: 1rem;">
-        </div>
-        
-        <div style="margin-bottom: 1.5rem;">
-          <label style="display: block; color: #a1a1aa; margin-bottom: 0.5rem; font-size: 0.875rem;">File Path</label>
-          <input type="text" id="mcpPath" placeholder="/path/to/your/mcp_server.py" style="width: 100%; padding: 0.75rem; background: #27272a; border: 1px solid #3f3f46; border-radius: 0.5rem; color: #fff; font-size: 1rem;">
-        </div>
-        
-        <div style="display: flex; gap: 1rem;">
-          <button onclick="addMcpServer()" style="flex: 1; padding: 0.75rem; background: #6366f1; color: #fff; border: none; border-radius: 0.5rem; font-weight: 600; cursor: pointer;">Add Server</button>
-          <button onclick="closeAddMcpDialog()" style="flex: 1; padding: 0.75rem; background: transparent; color: #a1a1aa; border: 1px solid #3f3f46; border-radius: 0.5rem; font-weight: 600; cursor: pointer;">Cancel</button>
-        </div>
-        
-        <div id="mcpError" style="margin-top: 1rem; color: #ef4444; font-size: 0.875rem; display: none;"></div>
-        <div id="mcpSuccess" style="margin-top: 1rem; color: #10b981; font-size: 0.875rem; display: none;"></div>
-      </div>
-    </div>
-  `;
-  
-  document.body.insertAdjacentHTML('beforeend', dialogHtml);
-}
-
-window.closeAddMcpDialog = function() {
-  const dialog = document.getElementById('mcpDialog');
-  if (dialog) {
-    dialog.remove();
-  }
-};
-
-window.addMcpServer = async function() {
-  const name = document.getElementById('mcpName').value.trim();
-  const command = document.getElementById('mcpCommand').value.trim();
-  const path = document.getElementById('mcpPath').value.trim();
-  const errorDiv = document.getElementById('mcpError');
-  const successDiv = document.getElementById('mcpSuccess');
-  
-  errorDiv.style.display = 'none';
-  successDiv.style.display = 'none';
-  
-  if (!name || !command || !path) {
-    errorDiv.textContent = 'Please fill in all fields';
-    errorDiv.style.display = 'block';
-    return;
-  }
-  
-  try {
-    const response = await fetch('http://localhost:3001/add-mcp', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        name,
-        command,
-        args: [path]
-      })
-    });
-    
-    const data = await response.json();
-    
-    if (data.success) {
-      successDiv.textContent = `✅ ${data.message} (${data.toolsLoaded} total tools)`;
-      successDiv.style.display = 'block';
-      setTimeout(() => {
-        closeAddMcpDialog();
-      }, 2000);
-    } else {
-      errorDiv.textContent = data.error;
-      errorDiv.style.display = 'block';
-    }
-  } catch (error) {
-    errorDiv.textContent = `Error: ${error.message}`;
-    errorDiv.style.display = 'block';
-  }
-};

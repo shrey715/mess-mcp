@@ -18,6 +18,7 @@ const PORT = process.env.PORT || 3001;
 // Middleware
 app.use(cors());
 app.use(express.json());
+app.use(express.static(__dirname)); // Serve frontend files
 
 // Initialize Gemini
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || 'YOUR_API_KEY_HERE');
@@ -46,7 +47,7 @@ const mcpConfigs = {
   },
   moodle: {
     command: 'npx',
-    args: ['tsx', '/home/abhishekg/Documents/OnlyApps/mcp_servers/moodle_mcp/src/server.ts'],
+    args: ['tsx', '/home/kinomorph/Github/OnlyApps/mcp_servers/moodle_mcp/src/server.ts'],
     type: 'stdio',
     env: {
       MOODLE_URL: process.env.MOODLE_URL || 'http://localhost:8085',
@@ -58,7 +59,7 @@ const mcpConfigs = {
 // Initialize MCP clients
 async function initializeMCPClients() {
   console.log('Initializing MCP clients...');
-  
+
   for (const [name, config] of Object.entries(mcpConfigs)) {
     try {
       if (config.type === 'stdio') {
@@ -80,14 +81,14 @@ async function initializeMCPClients() {
         await client.connect(transport);
         mcpClients[name] = client;
         console.log(`✅ ${name} MCP client connected (stdio)`);
-        
+
       } else if (config.type === 'http') {
         // For HTTP, initialize session with SSE handling
         try {
           // First, create a new session by calling initialize without a session ID
           const initResponse = await fetch(config.url, {
             method: 'POST',
-            headers: { 
+            headers: {
               'Content-Type': 'application/json',
               'Accept': 'application/json, text/event-stream'
             },
@@ -105,17 +106,17 @@ async function initializeMCPClients() {
               id: 1
             })
           });
-          
+
           // Extract session ID from response
-          let sessionId = initResponse.headers.get('mcp-session-id') || 
-                         initResponse.headers.get('x-mcp-session-id');
-          
+          let sessionId = initResponse.headers.get('mcp-session-id') ||
+            initResponse.headers.get('x-mcp-session-id');
+
           // Check if response is SSE or JSON and extract session from body if needed
           const contentType = initResponse.headers.get('content-type');
           if (contentType && contentType.includes('text/event-stream')) {
             const text = await initResponse.text();
             console.log(`[${name}] SSE initialization response:`, text.substring(0, 200));
-            
+
             // Try to parse SSE for session info
             try {
               const data = parseSSEResponse(text);
@@ -132,13 +133,13 @@ async function initializeMCPClients() {
               sessionId = initData.result.sessionId;
             }
           }
-          
+
           // If still no session ID, generate one
           if (!sessionId) {
             sessionId = Math.random().toString(36).substring(2, 15);
             console.log(`[${name}] Generated fallback session ID: ${sessionId}`);
           }
-          
+
           mcpSessions[name] = sessionId;
           mcpClients[name] = { type: 'http', url: config.url };
           console.log(`✅ ${name} MCP server available (HTTP, session: ${sessionId})`);
@@ -146,7 +147,7 @@ async function initializeMCPClients() {
           console.log(`⚠️  ${name} MCP HTTP initialization failed:`, error.message);
         }
       }
-      
+
     } catch (error) {
       console.log(`❌ ${name} MCP client failed to connect:`, error.message);
     }
@@ -160,13 +161,13 @@ initializeMCPClients().catch(console.error);
 function parseSSEResponse(sseText) {
   const lines = sseText.trim().split('\n');
   let jsonData = '';
-  
+
   for (const line of lines) {
     if (line.startsWith('data: ')) {
       jsonData += line.substring(6);
     }
   }
-  
+
   try {
     return JSON.parse(jsonData);
   } catch (e) {
@@ -175,25 +176,9 @@ function parseSSEResponse(sseText) {
   }
 }
 
-// System prompt with IIIT context
-const SYSTEM_PROMPT = `You are an AI assistant for IIIT Hyderabad students. You MUST use the available tools to answer questions about:
-- Academic policies, exams, quizzes, grading (use search_intranet)
-- Mess menus and timings (use get_mess_info)  
-- Course assignments and deadlines (use search_moodle)
-
-IMPORTANT: When a student asks about exams, quizzes, deadlines, policies, or any IIIT-specific information, you MUST call the appropriate tool first. Do NOT try to answer without using tools.
-
-Process:
-1. Identify which tool to use based on the question
-2. Call the tool with a relevant search query
-3. Use the retrieved information to provide a helpful answer
-4. If the first tool doesn't help, try another tool
-
-Be friendly, accurate, and always use tools for IIIT-specific questions.`;
-
-// Available MCP tools (function declarations for Gemini)
-// These are dynamically generated from MCP servers
+// Available MCP tools and resources
 let availableTools = [];
+let availableResources = [];
 
 // Tool metadata mapping (internal use only)
 const toolMetadata = new Map();
@@ -201,25 +186,39 @@ const toolMetadata = new Map();
 // Get tools from all connected MCP servers
 async function loadMCPTools() {
   const tools = [];
-  
+
+  // Custom tool for reading resources
+  tools.push({
+    name: "read_resource",
+    description: "Read data from an MCP resource URI (e.g., mess://menus/today)",
+    parameters: {
+      type: "object",
+      properties: {
+        uri: {
+          type: "string",
+          description: "The full URI of the resource to read"
+        }
+      },
+      required: ["uri"]
+    }
+  });
+
   for (const [serverName, client] of Object.entries(mcpClients)) {
     if (!client) continue;
-    
+
     try {
       let result;
-      
+
       if (client.type === 'http') {
-        // HTTP: Make JSON-RPC call to list tools
-        const headers = { 
+        const headers = {
           'Content-Type': 'application/json',
           'Accept': 'application/json, text/event-stream'
         };
-        
-        // Add session ID if available
+
         if (mcpSessions[serverName]) {
           headers['mcp-session-id'] = mcpSessions[serverName];
         }
-        
+
         const response = await fetch(client.url, {
           method: 'POST',
           headers: headers,
@@ -230,8 +229,7 @@ async function loadMCPTools() {
             id: 1
           })
         });
-        
-        // Handle SSE or JSON response
+
         const contentType = response.headers.get('content-type');
         let data;
         if (contentType && contentType.includes('text/event-stream')) {
@@ -240,31 +238,25 @@ async function loadMCPTools() {
         } else {
           data = await response.json();
         }
-        
-        console.log(`[${serverName}] Raw HTTP response:`, JSON.stringify(data, null, 2));
-        result = data.result || data; // Handle different response formats
+
+        result = data.result || data;
       } else {
-        // Stdio: Use SDK method
         result = await client.listTools();
       }
-      
-      // Check if result has tools array
+
       if (!result || !result.tools) {
         console.log(`No tools found for ${serverName}. Result structure:`, JSON.stringify(result, null, 2));
         continue;
       }
-      
-      // Convert MCP tool schema to Gemini function declaration format
+
       for (const tool of result.tools) {
         const toolName = `${serverName}_${tool.name}`;
-        
-        // Store metadata separately
+
         toolMetadata.set(toolName, {
           server: serverName,
           originalName: tool.name
         });
-        
-        // Create clean Gemini function declaration (no custom properties)
+
         tools.push({
           name: toolName,
           description: tool.description || `${tool.name} from ${serverName} server`,
@@ -275,20 +267,150 @@ async function loadMCPTools() {
           }
         });
       }
-      
+
       console.log(`Loaded ${result.tools.length} tools from ${serverName}`);
     } catch (error) {
       console.error(`Error loading tools from ${serverName}:`, error.message);
     }
   }
-  
+
   availableTools = tools;
   return tools;
+}
+
+// Get resources from all connected MCP servers
+async function loadMCPResources() {
+  const resources = [];
+
+  for (const [serverName, client] of Object.entries(mcpClients)) {
+    if (!client) continue;
+
+    try {
+      let result;
+
+      if (client.type === 'http') {
+        const headers = {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json, text/event-stream'
+        };
+
+        if (mcpSessions[serverName]) {
+          headers['mcp-session-id'] = mcpSessions[serverName];
+        }
+
+        const response = await fetch(client.url, {
+          method: 'POST',
+          headers: headers,
+          body: JSON.stringify({
+            jsonrpc: '2.0',
+            method: 'resources/list',
+            params: {},
+            id: 2
+          })
+        });
+
+        const contentType = response.headers.get('content-type');
+        let data;
+        if (contentType && contentType.includes('text/event-stream')) {
+          const sseText = await response.text();
+          data = parseSSEResponse(sseText);
+        } else {
+          data = await response.json();
+        }
+
+        result = data.result || data;
+      } else {
+        // SDK might not have listResources exposed directly on Client class easily in all versions,
+        // but let's try assuming standard MCP SDK
+        if (client.listResources) {
+          result = await client.listResources();
+        } else {
+          // Fallback request
+          result = await client.request({ method: 'resources/list' });
+        }
+      }
+
+      if (!result || !result.resources) continue;
+
+      for (const resource of result.resources) {
+        resources.push({
+          ...resource,
+          server: serverName
+        });
+      }
+
+    } catch (error) {
+      console.log(`Note: Could not load resources from ${serverName}: ${error.message}`);
+    }
+  }
+
+  availableResources = resources;
+  console.log(`Loaded ${resources.length} resources from servers`);
+  return resources;
 }
 
 // Execute MCP tool calls using MCP SDK
 async function executeMCPTool(toolName, args) {
   console.log(`Executing MCP tool: ${toolName}`, args);
+
+  // Handle special read_resource tool
+  if (toolName === 'read_resource') {
+    const { uri } = args;
+    // Find which server handles this URI
+    // Heuristic: Check if any known resource starts with the URI or matches a template
+    // Simpler: iterate all clients and try reading
+
+    for (const [serverName, client] of Object.entries(mcpClients)) {
+      if (!client) continue;
+
+      try {
+        let result;
+        if (client.type === 'http') {
+          const headers = {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json, text/event-stream'
+          };
+          if (mcpSessions[serverName]) headers['mcp-session-id'] = mcpSessions[serverName];
+
+          const response = await fetch(client.url, {
+            method: 'POST',
+            headers: headers,
+            body: JSON.stringify({
+              jsonrpc: '2.0',
+              method: 'resources/read',
+              params: { uri },
+              id: Date.now()
+            })
+          });
+
+          const contentType = response.headers.get('content-type');
+          let data;
+          if (contentType && contentType.includes('text/event-stream')) {
+            const sseText = await response.text();
+            data = parseSSEResponse(sseText);
+          } else {
+            data = await response.json();
+          }
+
+          if (data.error) continue; // Try next server
+          result = data.result;
+
+        } else {
+          try {
+            result = await client.readResource({ uri });
+          } catch (e) { continue; }
+        }
+
+        if (result && result.contents) {
+          return { content: result.contents };
+        }
+
+      } catch (e) {
+        // Continue to next server
+      }
+    }
+    return { error: `Resource not found: ${uri}` };
+  }
 
   try {
     // Get metadata for this tool
@@ -309,19 +431,19 @@ async function executeMCPTool(toolName, args) {
     }
 
     let result;
-    
+
     if (client.type === 'http') {
       // HTTP: Make JSON-RPC call
-      const headers = { 
+      const headers = {
         'Content-Type': 'application/json',
         'Accept': 'application/json, text/event-stream'
       };
-      
+
       // Add session ID if available
       if (mcpSessions[serverName]) {
         headers['mcp-session-id'] = mcpSessions[serverName];
       }
-      
+
       const response = await fetch(client.url, {
         method: 'POST',
         headers: headers,
@@ -335,7 +457,7 @@ async function executeMCPTool(toolName, args) {
           id: Date.now()
         })
       });
-      
+
       // Handle SSE or JSON response
       const contentType = response.headers.get('content-type');
       let data;
@@ -345,7 +467,7 @@ async function executeMCPTool(toolName, args) {
       } else {
         data = await response.json();
       }
-      
+
       result = data.result;
     } else {
       // Stdio: Use SDK method
@@ -363,13 +485,14 @@ async function executeMCPTool(toolName, args) {
         .filter(c => c.type === 'text')
         .map(c => c.text)
         .join('\n');
-      
+
       try {
         // Try to parse as JSON
         return JSON.parse(textContent);
       } catch {
         // Return as is if not JSON
-        return { result: textContent, source: serverName };
+        if (textContent) return { result: textContent, source: serverName };
+        return result; // Fallback
       }
     }
 
@@ -381,27 +504,77 @@ async function executeMCPTool(toolName, args) {
   }
 }
 
-// Main chat endpoint
+// Helper to construct dynamic system prompt
+function getSystemPrompt() {
+  let resourceList = availableResources.map(r => `- ${r.uri}: ${r.name} (${r.mimeType || 'text/plain'})`).join('\n');
+  if (availableResources.length > 0) {
+    resourceList = `\nAVAILABLE RESOURCES (Use read_resource to access):\n${resourceList}\n`;
+  } else {
+    resourceList = "";
+  }
+
+  return SYSTEM_PROMPT.replace('{{RESOURCES}}', resourceList);
+}
+
+// System prompt with IIIT context
+const SYSTEM_PROMPT = `You are an AI assistant for IIIT Hyderabad students.
+
+{{RESOURCES}}
+
+You MUST use the available tools to answer questions about:
+- Academic policies, exams, quizzes, grading (use search_intranet)
+- Mess menus and timings (use read_resource with 'mess://...' URIs or get_mess_info)
+- Course assignments and deadlines (use search_moodle)
+
+IMPORTANT: When a student asks about exams, quizzes, deadlines, policies, or any IIIT-specific information, you MUST call the appropriate tool first. Do NOT try to answer without using tools.
+
+Process:
+1. Identify which tool or resource to use based on the question
+   - For mess menus, look for 'mess://menus/...' resources
+   - For generic info, use 'mess://info'
+2. Call the tool with a relevant search query
+3. Use the retrieved information to provide a helpful answer
+4. If the first tool doesn't help, try another tool
+
+Be friendly, accurate, and always use tools for IIIT-specific questions.`;
+
+// Alias for usage below
+const _getSystemPrompt = getSystemPrompt;
+
+// Main chat endpoint (SSE)
 app.post('/chat', async (req, res) => {
+  // Set headers for SSE
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+
+  const send = (data) => {
+    res.write(`data: ${JSON.stringify(data)}\n\n`);
+  };
+
   try {
     const { message, history = [] } = req.body;
 
     if (!message) {
-      return res.status(400).json({ error: 'Message is required' });
+      send({ type: 'error', error: 'Message is required' });
+      res.end();
+      return;
     }
 
     console.log('Received message:', message);
 
     // Load available tools from MCP servers
     if (availableTools.length === 0) {
+      send({ type: 'thinking', detail: 'Loading tools...' });
       await loadMCPTools();
+      await loadMCPResources();
     }
 
-    // Initialize model with function calling
+    // Initialize model
     const model = genAI.getGenerativeModel({
       model: 'gemini-2.5-flash',
       tools: availableTools.length > 0 ? [{ functionDeclarations: availableTools }] : [],
-      systemInstruction: SYSTEM_PROMPT,
+      systemInstruction: getSystemPrompt(),
       safetySettings: [
         { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
         { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
@@ -430,102 +603,91 @@ app.post('/chat', async (req, res) => {
       history: chatHistory
     });
 
-    // Send message
-    let result = await chat.sendMessage(message);
-    let response = result.response;
-    const mcpCalls = [];
-
-    // Helper function to extract function calls from response
-    const getFunctionCalls = (response) => {
-      // Check if functionCalls property exists (SDK might provide this)
-      if (response.functionCalls && response.functionCalls.length > 0) {
-        return response.functionCalls;
-      }
-      
-      // Otherwise, extract from candidates.content.parts
-      const parts = response.candidates?.[0]?.content?.parts || [];
-      return parts
-        .filter(part => part.functionCall)
-        .map(part => part.functionCall);
-    };
-
-    let functionCalls = getFunctionCalls(response);
-    console.log('Initial response candidates:', response.candidates?.[0]?.content?.parts?.length || 0);
-    console.log('Initial response has function calls:', functionCalls.length);
-    if (functionCalls.length > 0) {
-      console.log('Function calls detected:', functionCalls.map(fc => fc.name).join(', '));
-    }
-
-    // Handle function calls
-    const maxIterations = 5; // Prevent infinite loops
+    let currentMessage = message;
+    const maxIterations = 5;
     let iterations = 0;
-    
-    while (functionCalls.length > 0 && iterations < maxIterations) {
-      const functionCall = functionCalls[0];
-      console.log(`[Iteration ${iterations + 1}] Function call requested:`, functionCall.name, functionCall.args);
 
-      mcpCalls.push(functionCall.name);
+    // Main loop for tool use
+    while (iterations < maxIterations) {
+      let functionCall = null;
+      let fullText = '';
 
-      // Execute the function
-      const functionResult = await executeMCPTool(functionCall.name, functionCall.args);
-      console.log(`[Iteration ${iterations + 1}] Function result (truncated):`, JSON.stringify(functionResult).substring(0, 200));
-      console.log(`[Iteration ${iterations + 1}] Full function result:`, JSON.stringify(functionResult, null, 2));
+      const result = await chat.sendMessageStream(currentMessage);
 
-      // Send function response back to model
-      result = await chat.sendMessage([{
-        functionResponse: {
-          name: functionCall.name,
-          response: functionResult
+      // Process stream
+      for await (const chunk of result.stream) {
+        const chunkText = chunk.text();
+        if (chunkText) {
+          send({ type: 'content', text: chunkText });
+          fullText += chunkText;
         }
-      }]);
 
-      response = result.response;
-      functionCalls = getFunctionCalls(response);
-      console.log(`[Iteration ${iterations + 1}] New response has function calls:`, functionCalls.length);
-      iterations++;
-    }
-    
-    console.log('Function calling loop ended. Total MCP calls:', mcpCalls.length);
+        // Check for function calls in the chunk (they usually come at the end)
+        // Note: SDK handles aggregation, but we need to check the finalized chunk
+      }
 
-    // Get final text response
-    let finalResponse;
-    try {
-      finalResponse = response.text();
-    } catch (error) {
-      // If there's no text (still has function calls), provide a fallback
-      console.error('Error getting text response:', error);
-      const remainingCalls = getFunctionCalls(response);
-      if (remainingCalls.length > 0) {
-        finalResponse = 'I tried to fetch that information, but encountered an issue processing the results. Please try rephrasing your question.';
+      const response = await result.response;
+      const calls = response.functionCalls();
+
+      if (calls && calls.length > 0) {
+        functionCall = calls[0]; // Handle one at a time for simplicity
+        const toolName = functionCall.name;
+        const toolArgs = functionCall.args;
+
+        console.log(`Tool call: ${toolName}`, toolArgs);
+
+        // Notify frontend
+        send({
+          type: 'tool_call',
+          name: toolName,
+          args: toolArgs
+        });
+
+        // Custom detailing for read_resource
+        if (toolName === 'read_resource') {
+          send({ type: 'thinking', detail: `Reading ${toolArgs.uri}...` });
+        } else {
+          send({ type: 'thinking', detail: `Asking ${toolName}...` });
+        }
+
+        // Execute tool
+        const toolResult = await executeMCPTool(toolName, toolArgs);
+
+        send({
+          type: 'tool_result',
+          name: toolName,
+          result: toolResult
+        });
+
+        // Feed back to model
+        currentMessage = [{
+          functionResponse: {
+            name: toolName,
+            response: toolResult
+          }
+        }];
+
+        iterations++;
       } else {
-        finalResponse = 'I apologize, but I encountered an error processing your request.';
+        // No function call, we are done
+        break;
       }
     }
-    
-    // If response is empty, provide a helpful message
-    if (!finalResponse || finalResponse.trim() === '') {
-      finalResponse = 'I searched for that information but couldn\'t generate a proper response. Could you try rephrasing your question?';
-    }
 
-    res.json({
-      response: finalResponse,
-      mcpCalls: mcpCalls.length > 0 ? mcpCalls : null,
-      timestamp: new Date().toISOString()
-    });
+    send({ type: 'done' });
 
   } catch (error) {
     console.error('Error in chat endpoint:', error);
-    res.status(500).json({
-      error: 'Failed to process message',
-      details: error.message
-    });
+    send({ type: 'error', error: error.message });
+  } finally {
+    res.end();
   }
 });
 
 // Health check
 app.get('/health', async (req, res) => {
   const mcpStatus = {};
-  
+
   for (const [name, client] of Object.entries(mcpClients)) {
     const toolCount = Array.from(toolMetadata.values()).filter(m => m.server === name).length;
     mcpStatus[name] = {
@@ -534,11 +696,12 @@ app.get('/health', async (req, res) => {
       toolsAvailable: toolCount
     };
   }
-  
+
   res.json({
     status: 'ok',
     mcpClients: mcpStatus,
     totalTools: availableTools.length,
+    totalResources: availableResources.length,
     timestamp: new Date().toISOString()
   });
 });
@@ -547,12 +710,14 @@ app.get('/health', async (req, res) => {
 app.post('/reload-tools', async (req, res) => {
   try {
     await loadMCPTools();
+    await loadMCPResources();
     res.json({
       success: true,
       toolsLoaded: availableTools.length,
-      tools: availableTools.map(t => ({ 
-        name: t.name, 
-        server: toolMetadata.get(t.name)?.server 
+      resourcesLoaded: availableResources.length,
+      tools: availableTools.map(t => ({
+        name: t.name,
+        server: toolMetadata.get(t.name)?.server
       }))
     });
   } catch (error) {
@@ -566,51 +731,123 @@ app.post('/reload-tools', async (req, res) => {
 // Endpoint to add custom MCP server
 app.post('/add-mcp', async (req, res) => {
   try {
-    const { name, command, args, env } = req.body;
-    
-    if (!name || !command) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Name and command are required' 
+    const { name, type = 'stdio', command, args, url, env } = req.body;
+
+    if (!name) {
+      return res.status(400).json({
+        success: false,
+        error: 'Name is required'
       });
     }
-    
+
+    if (type === 'stdio' && !command) {
+      return res.status(400).json({
+        success: false,
+        error: 'Command is required for stdio type'
+      });
+    }
+
+    if (type === 'http' && !url) {
+      return res.status(400).json({
+        success: false,
+        error: 'URL is required for http type'
+      });
+    }
+
     // Check if already exists
     if (mcpClients[name]) {
-      return res.status(400).json({ 
-        success: false, 
-        error: `MCP server "${name}" already exists` 
+      return res.status(400).json({
+        success: false,
+        error: `MCP server "${name}" already exists`
       });
     }
-    
+
     // Add to configs
-    mcpConfigs[name] = {
-      command,
-      args: args || [],
-      type: 'stdio',
+    const config = {
+      type,
       env: env || {}
     };
-    
+
+    if (type === 'stdio') {
+      config.command = command;
+      config.args = args || [];
+    } else {
+      config.url = url;
+    }
+
+    mcpConfigs[name] = config;
+
     // Initialize the client
-    const transport = new StdioClientTransport({
-      command,
-      args: args || [],
-      env: { ...process.env, ...(env || {}) }
-    });
-    
-    const client = new Client({
-      name: `${name}-client`,
-      version: '1.0.0'
-    }, {
-      capabilities: {}
-    });
-    
-    await client.connect(transport);
-    mcpClients[name] = client;
-    
+    if (type === 'stdio') {
+      const transport = new StdioClientTransport({
+        command,
+        args: args || [],
+        env: { ...process.env, ...(env || {}) }
+      });
+
+      const client = new Client({
+        name: `${name}-client`,
+        version: '1.0.0'
+      }, {
+        capabilities: {}
+      });
+
+      await client.connect(transport);
+      mcpClients[name] = client;
+    } else {
+      // HTTP/SSE Logic similar to initializeMCPClients
+      try {
+        const initResponse = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json, text/event-stream'
+          },
+          body: JSON.stringify({
+            jsonrpc: '2.0',
+            method: 'initialize',
+            params: {
+              protocolVersion: '2024-11-05',
+              capabilities: {},
+              clientInfo: {
+                name: `${name}-client`,
+                version: '1.0.0'
+              }
+            },
+            id: 1
+          })
+        });
+
+        let sessionId = initResponse.headers.get('mcp-session-id') ||
+          initResponse.headers.get('x-mcp-session-id');
+
+        const contentType = initResponse.headers.get('content-type');
+        if (contentType && contentType.includes('text/event-stream')) {
+          const text = await initResponse.text();
+          const data = parseSSEResponse(text);
+          if (data.result && data.result.sessionId) sessionId = data.result.sessionId;
+        } else {
+          const initData = await initResponse.json();
+          if (initData.result && initData.result.sessionId) sessionId = initData.result.sessionId;
+        }
+
+        if (!sessionId) {
+          sessionId = Math.random().toString(36).substring(2, 15);
+        }
+
+        mcpSessions[name] = sessionId;
+        mcpClients[name] = { type: 'http', url: url };
+
+      } catch (err) {
+        delete mcpConfigs[name]; // specific cleanup
+        throw new Error(`Failed to connect to HTTP MCP: ${err.message}`);
+      }
+    }
+
     // Reload tools
     await loadMCPTools();
-    
+    await loadMCPResources();
+
     res.json({
       success: true,
       message: `MCP server "${name}" added successfully`,
@@ -625,6 +862,43 @@ app.post('/add-mcp', async (req, res) => {
   }
 });
 
+// Endpoint to remove MCP server
+app.post('/remove-mcp', async (req, res) => {
+  try {
+    const { name } = req.body;
+
+    if (!name || !mcpConfigs[name]) {
+      return res.status(404).json({ success: false, error: 'MCP server not found' });
+    }
+
+    const client = mcpClients[name];
+    if (client) {
+      // Best effort to close if it has a close method
+      if (typeof client.close === 'function') {
+        try { await client.close(); } catch (e) { console.error('Error closing client:', e); }
+      }
+    }
+
+    delete mcpClients[name];
+    delete mcpConfigs[name];
+    delete mcpSessions[name];
+
+    // Remove tools associated with this server
+    availableTools = [];
+    toolMetadata.clear();
+    await loadMCPTools(); // Reload remaining
+    await loadMCPResources();
+
+    res.json({
+      success: true,
+      message: `MCP server "${name}" removed successfully`
+    });
+
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Endpoint to list all MCP servers
 app.get('/list-mcps', (req, res) => {
   const mcpList = Object.entries(mcpConfigs).map(([name, config]) => ({
@@ -633,7 +907,7 @@ app.get('/list-mcps', (req, res) => {
     connected: !!mcpClients[name],
     toolCount: Array.from(toolMetadata.values()).filter(m => m.server === name).length
   }));
-  
+
   res.json({ mcps: mcpList });
 });
 
@@ -642,18 +916,16 @@ app.listen(PORT, async () => {
   console.log(`🤖 IIIT AI Assistant Backend running on http://localhost:${PORT}`);
   console.log(`📡 Health check: http://localhost:${PORT}/health`);
   console.log('\n⚠️  Remember to set GEMINI_API_KEY environment variable');
-  
+
   // Load tools after server starts
   setTimeout(async () => {
     try {
       await loadMCPTools();
-      console.log(`\n✅ Loaded ${availableTools.length} tools from MCP servers`);
-      availableTools.forEach(t => {
-        const meta = toolMetadata.get(t.name);
-        console.log(`   - ${t.name} (${meta?.server})`);
-      });
+      await loadMCPResources();
+      console.log(`\n✅ Loaded ${availableTools.length} tools`);
+      console.log(`✅ Loaded ${availableResources.length} resources`);
     } catch (error) {
-      console.error('Error loading MCP tools:', error.message);
+      console.error('Error loading MCP tools/resources:', error.message);
     }
   }, 2000); // Wait 2 seconds for MCP clients to initialize
 });
