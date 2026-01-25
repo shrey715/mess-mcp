@@ -44,3 +44,8 @@ chroma_db/
 # Temporary files
 *.log
 *.tmp
+
+# Generated Data
+*.sqlite3
+vector_db/
+*.log
