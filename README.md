@@ -1,85 +1,75 @@
-# Mess MCP 🍱
+# Mess MCP Server
 
-> A Model Context Protocol (MCP) server for the IIIT Mess portal, providing real-time menu, registration, and marketplace data for AI assistants.
+A Model Context Protocol (MCP) server for the IIIT Mess portal. This server provides robust, real-time integration enabling AI assistants to securely interact with the institution's mess dining and marketplace systems over standard STDIO transports.
 
-This server enables AI assistants (like Claude) to interact with the IIIT Mess system, allowing users to query meal menus, check registration status, and interact with the mess marketplace through natural language.
+## Architecture & Features
 
----
+The server interfaces via the official Anthropic `mcp` SDK, abstracting the `mess.iiit.ac.in/api` into easily digestible Resources, Tools, and Prompts.
 
-## ✨ Features
+- **Resources**: Exposes static read-only constraints such as system capacities, current multi-week menus, available extras, operating hours, and standard meal rates.
+- **Tools**: Authorizes state mutations including modifying registrations (cancel, skip, un-cancel, register), applying for extras, and seamlessly filing formal qualitative feedback.
+- **Prompts**: Provides pre-programmed reasoning flows, assisting agents with weekly meal planning and historic billing analysis, mitigating overspending on non-essential items.
 
-- **🍴 Real-time Menu**: Query breakfast, lunch, snacks, and dinner menus for any day.
-- **📝 Registration Management**: Check and update mess registration status.
-- **🛒 Marketplace API**: Access the mess buy/sell marketplace for meal vouchers.
-- **🕒 Availability Queries**: Check mess timings and real-time availability.
-- **📄 OpenAPI Integration**: Fully documented with OpenAPI 3.0.
-
-## 🚀 Getting Started
-
-### Prerequisites
+## Prerequisites
 
 - **Python 3.10+**
-- **uv** (recommended) or **pip**
+- **uv** (recommended for seamless environments) or **pip**
 
-### Installation
+## Installation
 
-1. **Clone the repository** (if you haven't already):
+1. Clone the repository to your local environment:
    ```bash
    git clone https://github.com/shrey715/mess-mcp.git
    cd mess-mcp
    ```
 
-2. **Sync dependencies**:
-   Using `uv`:
+2. Sync the dependencies and build the virtual environment:
    ```bash
    uv sync
-   ```
-   Or using `pip`:
-   ```bash
-   pip install -r requirements.txt
+   # Or using standard pip
+   pip install .
    ```
 
-### Running the Server
+## Configuration
 
-Start the MCP server locally:
+The server operations are authenticated. You must set the correct environment variables before launch, preventing API tokens from passing unnecessarily through the language model context window.
+
 ```bash
-python mcp_server.py
+export MESS_API_KEY="your-jwt-or-api-token"
 ```
 
-## 🛠 Usage with Claude Desktop
+## Usage Integration
 
-Add the following to your `claude_desktop_config.json`:
+The server operates exclusively via standard `stdio`, assuring strong compatibility with high-performance desktop clients. 
+
+### Claude Desktop Integration
+
+Locate your Claude Desktop JSON configuration and append the following:
 
 ```json
 {
   "mcpServers": {
     "mess-mcp": {
-      "command": "python",
-      "args": ["/path/to/mess-mcp/mcp_server.py"]
+      "command": "uv",
+      "args": ["run", "--directory", "/path/to/mess-mcp", "mess-mcp"],
+      "env": {
+        "MESS_API_KEY": "your-api-key"
+      }
     }
   }
 }
 ```
 
-## 📚 API Documentation
+### Cursor or VS Code Integration
 
-The server implements the [Model Context Protocol](https://modelcontextprotocol.io/). Detailed API specifications can be found in [docs/mess_openapi.yaml](docs/mess_openapi.yaml).
+Use standard integration settings inside Cursor or VS Code Copilot to register local MCPs. Provide the exact executable invocation:
 
-### Available Tools
+**Command Path**: `uv run --directory /path/to/mess-mcp mess-mcp`
 
-- `get_menu`: Fetch the menu for a specific date and meal type.
-- `get_registration_status`: Check a student's current mess registration.
-- `list_marketplace_items`: View active buy/sell offers in the marketplace.
-- `get_mess_timings`: Get official mess operating hours.
+## Documentation
 
-## 🤝 Contributing
+Full architectural insights are encoded directly into the MCP introspection system (`mcp list`). Endpoints trace the official OpenAPI 3.0 specification available from the institution portal.
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+## License
 
-## 📝 License
-
-MIT
-
----
-
-**Built with ❤️ for the IIIT Community**
+This software is released under the GNU General Public License v3.0 (GPLv3). Review the `LICENSE` file for strict distribution and modification stipulations.

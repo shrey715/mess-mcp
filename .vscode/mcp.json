@@ -1,20 +1,9 @@
 {
     "servers": {
-        "iiith-intranet": {
-            "type": "stdio",
-            "command": "python3",
-            "args": [
-                "/home/abhishekg/Documents/OnlyApps/mcp_servers/intranet_mcp/mcp_server.py"
-            ]
-        },
         "mess_mcp": {
             "type": "http",
             "url": "http://localhost:8000/mcp"
         },
-        "moodle_mcp": {
-            "type": "http",
-            "url": "http://localhost:3001/mcp"
-        }
     },
     "inputs": []
 }
