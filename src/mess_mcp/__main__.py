@@ -2,23 +2,21 @@
 
 import sys
 import logging
-import asyncio
-from mess_mcp.server import get_mcp
 
 logging.basicConfig(level=logging.INFO, stream=sys.stderr)
 
-def main():
-    """Run the standard MCP STDIO server."""
-    mcp = get_mcp()
-    
-    # We use CLI runner if provided, or standard stdio run
+
+def main() -> None:
+    """Launch the Mess MCP server over standard STDIO."""
+    from mess_mcp.server import get_mcp
+
     try:
-        from mcp.server.fastmcp import context
-        # Standard approach
+        mcp = get_mcp()
         mcp.run()
     except Exception as e:
-        logging.error(f"Failed to start Mess MCP server: {e}")
+        logging.error("Failed to start Mess MCP server: %s", e)
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

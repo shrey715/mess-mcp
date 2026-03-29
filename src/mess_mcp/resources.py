@@ -1,98 +1,137 @@
-"""MCP Resources. Maps to static or read-only context data."""
+"""MCP Resources — read-only context data surfaced to the language model."""
 
 import json
-from datetime import datetime, date
+from typing import Any
+
 from mess_mcp.server import mcp
 from mess_mcp.api import make_request, fetch_config_internal, APIError
 
-# --- Static Informational Resources ---
+
+def _dump(data: Any) -> str:
+    return json.dumps(data, indent=2)
+
+
+def _error(msg: str) -> str:
+    return json.dumps({"error": msg})
+
+
+# ---------------------------------------------------------------------------
+# Public resources (no authentication required)
+# ---------------------------------------------------------------------------
+
 
 @mcp.resource("mess://info")
 async def mess_info_resource() -> str:
-    """Static information about all messes (names, IDs, locations)."""
+    """Static information about all messes: names, identifiers, and locations."""
     try:
-        data = await make_request("/mess/info")
-        return json.dumps(data, indent=2)
-    except APIError as e:
-        return f"Error fetching mess info: {e}"
+        return _dump(await make_request("/mess/info"))
+    except APIError as exc:
+        return _error(str(exc))
+
 
 @mcp.resource("mess://menus/today")
 async def todays_menu_resource() -> str:
-    """Today's menu for all messes."""
+    """Today's food menu for every mess."""
     try:
-        data = await make_request("/mess/menus")
-        return json.dumps(data, indent=2)
-    except APIError as e:
-        return f"Error fetching today's menu: {e}"
+        return _dump(await make_request("/mess/menus"))
+    except APIError as exc:
+        return _error(str(exc))
+
 
 @mcp.resource("mess://menus/{date_str}")
 async def menu_by_date_resource(date_str: str) -> str:
-    """Menu for a specific date (YYYY-MM-DD format)."""
+    """Food menu for all messes on a specific date (YYYY-MM-DD)."""
     try:
-        data = await make_request("/mess/menus", params={"on": date_str})
-        return json.dumps(data, indent=2)
-    except APIError as e:
-        return f"Error fetching menu for {date_str}: {e}"
+        return _dump(await make_request("/mess/menus", params={"on": date_str}))
+    except APIError as exc:
+        return _error(f"Could not fetch menu for {date_str}: {exc}")
+
 
 @mcp.resource("mess://rates/{meal}")
 async def rates_by_meal_resource(meal: str) -> str:
-    """Rates for a meal (breakfast, lunch, snacks, dinner) for today."""
+    """Per-mess meal rates for a given meal type (breakfast/lunch/snacks/dinner)."""
     try:
-        data = await make_request("/mess/rates", params={"meal": meal})
-        return json.dumps(data, indent=2)
-    except APIError as e:
-        return f"Error fetching rates for {meal}: {e}"
+        return _dump(await make_request("/mess/rates", params={"meal": meal}))
+    except APIError as exc:
+        return _error(f"Could not fetch rates for {meal}: {exc}")
 
-@mcp.resource("mess://capacities")
-async def general_capacities_resource() -> str:
-    """Overall Mess Capacity details for the current period."""
+
+@mcp.resource("mess://capacities/{meal}")
+async def capacities_resource(meal: str) -> str:
+    """Available seat counts and maximum capacity per mess for a given meal."""
     try:
-        data = await make_request("/mess/capacities")
-        return json.dumps(data, indent=2)
-    except APIError as e:
-        return f"Error fetching capacities: {e}"
+        return _dump(await make_request("/mess/capacities", params={"meal": meal}))
+    except APIError as exc:
+        return _error(str(exc))
 
-# --- Authenticated Resources (Require MESS_API_KEY environment variable or system defaults) ---
+
+@mcp.resource("mess://config/meal-timings")
+async def meal_timings_resource() -> str:
+    """Official meal serving timings for each mess (today's date)."""
+    try:
+        return _dump(await make_request("/config/meal-timings"))
+    except APIError as exc:
+        return _error(str(exc))
+
+
+# ---------------------------------------------------------------------------
+# Authenticated resources (require MESS_API_KEY environment variable)
+# ---------------------------------------------------------------------------
+
 
 @mcp.resource("mess://profile")
 async def my_profile_resource() -> str:
-    """The current user's profile and authentication token data."""
+    """The authenticated user's profile and account details."""
     try:
-        data = await make_request("/auth/me")
-        return json.dumps(data, indent=2)
-    except APIError as e:
-        return json.dumps({"error": f"Requires valid authentication. {e}"})
+        return _dump(await make_request("/auth/me"))
+    except APIError as exc:
+        return _error(f"Authentication required: {exc}")
+
+
+@mcp.resource("mess://auth/keys")
+async def auth_keys_resource() -> str:
+    """All API keys associated with the authenticated user, including expired ones."""
+    try:
+        return _dump(await make_request("/auth/keys"))
+    except APIError as exc:
+        return _error(f"Authentication required: {exc}")
+
 
 @mcp.resource("mess://config/windows")
 async def config_windows_resource() -> str:
-    """Current registration, cancellation, and feedback windows."""
+    """All system operational windows: registration, cancellation, feedback, extras, skip."""
     try:
-        data = await fetch_config_internal(api_key=None)
-        return json.dumps(data, indent=2)
-    except Exception as e:
-        return json.dumps({"error": str(e)})
+        return _dump(await fetch_config_internal())
+    except Exception as exc:
+        return _error(str(exc))
+
+
+@mcp.resource("mess://preferences")
+async def preferences_resource() -> str:
+    """The authenticated user's saved preferences."""
+    try:
+        return _dump(await make_request("/preferences"))
+    except APIError as exc:
+        return _error(f"Authentication required: {exc}")
+
 
 @mcp.resource("mess://billing/history")
 async def bill_history_resource() -> str:
-    """Full breakdown of mess bills for all recorded months."""
+    """Full historical breakdown of mess bills across all recorded months."""
     try:
-        data = await make_request("/bills")
-        return json.dumps(data, indent=2)
-    except APIError as e:
-        return json.dumps({"error": f"Requires valid authentication. {e}"})
+        return _dump(await make_request("/bills"))
+    except APIError as exc:
+        return _error(f"Authentication required: {exc}")
+
 
 @mcp.resource("mess://billing/{year}/{month}")
 async def monthly_bill_resource(year: str, month: str) -> str:
-    """Mess bill for a specific month (1-12) and year (YYYY)."""
+    """Projected and confirmed mess bill for a specific year and month (1-12)."""
     try:
-        month_int = int(month)
-        year_int = int(year)
+        params = {"year": int(year), "month": int(month)}
     except ValueError:
-        return json.dumps({"error": "Month and year must be integers."})
-        
+        return _error("year and month must be integers.")
     try:
-        params = {"year": year_int, "month": month_int}
-        data = await make_request("/registrations/bill", params=params)
-        return json.dumps(data, indent=2)
-    except APIError as e:
-        return json.dumps({"error": f"Requires valid authentication. {e}"})
+        return _dump(await make_request("/registrations/bill", params=params))
+    except APIError as exc:
+        return _error(f"Authentication required: {exc}")

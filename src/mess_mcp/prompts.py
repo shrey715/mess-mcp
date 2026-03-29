@@ -1,65 +1,113 @@
-"""MCP Prompts. Provides predefined interaction flows."""
+"""MCP Prompts — predefined reasoning flows for common user tasks."""
 
-from mcp.server.fastmcp.prompts.base import Message
+from mcp.server.fastmcp import FastMCP
 from mess_mcp.server import mcp
 
-@mcp.prompt()
-def plan_my_week(start_date: str, end_date: str) -> list[Message]:
-    """
-    Aids users in picking their meals intelligently across the week, considering capacities and avoiding repetitions.
-    
-    Args:
-        start_date: Start search window YYYY-MM-DD
-        end_date: End search window YYYY-MM-DD
-    """
-    return [
-        Message(
-            role="user",
-            content=f"""
-I need assistance planning my meals between {start_date} and {end_date}.
-Please do the following:
-1. Load `mess://menus/{{date}}` for the dates in range.
-2. Check my existing registrations using the `check_registrations` tool.
-3. Suggest the healthiest or most varied combinations, avoiding repetitive curries or overly heavy meals if possible.
-4. Optionally use `register_meal` to set them up for me once I confirm.
-"""
-        )
-    ]
 
 @mcp.prompt()
-def review_monthly_expenses() -> list[Message]:
+def plan_my_week(start_date: str, end_date: str) -> list:
     """
-    Assists in understanding unexpected spikes in a given month's mess bill.
+    Guide the assistant to plan optimal meals for a week.
+
+    Loads menus and existing registrations, then suggests a varied, healthy
+    meal schedule and optionally books them upon confirmation.
+
+    Args:
+        start_date: Range start date (YYYY-MM-DD).
+        end_date: Range end date (YYYY-MM-DD).
     """
     return [
-        Message(
-            role="user",
-            content="""
-Please run `mess://billing/history` to load my previous bills.
-Identify my most expensive month this semester, and provide a detailed analysis of:
-1. Extra item spending (`list_registered_extras` tool or bill insights).
-2. Number of cancelled meals vs guests hosted.
-3. Recommendations for keeping my food costs down next month using the skip window.
-"""
-        )
+        {
+            "role": "user",
+            "content": (
+                f"I need help planning my meals at the IIIT-H mess between {start_date} and {end_date}.\n\n"
+                "Please:\n"
+                f"1. Load the menu resources for each date in the range using mess://menus/{{date}}.\n"
+                "2. Check my existing registrations using the check_registrations tool.\n"
+                "3. Suggest the most varied and nutritious meal combinations, "
+                "avoiding consecutive repetitions of the same dish.\n"
+                "4. Present the plan clearly, then ask me to confirm before calling register_meal."
+            ),
+        }
     ]
 
+
 @mcp.prompt()
-def submit_recent_feedback(date: str) -> list[Message]:
+def review_monthly_expenses() -> list:
     """
-    Step-by-step workflow to help a user submit robust feedback about the food quality.
-    
-    Args:
-        date: The date to review YYYY-MM-DD. Defaults to yesterday.
+    Guide the assistant to analyse billing history and identify cost drivers.
+
+    Loads bill history and extra registrations, then provides a structured
+    breakdown and recommendations for reducing future spending.
     """
     return [
-        Message(
-            role="user",
-            content=f"""
-I would like to submit feedback for my meals on {date}.
-1. First, find out what messes I ate at using `check_registrations`.
-2. Ask me exactly what I thought about each meal (taste, hygiene, temperature, delays).
-3. Once I reply, organize my responses and use `submit_feedback` to officially file it.
-"""
-        )
+        {
+            "role": "user",
+            "content": (
+                "Please analyse my IIIT-H mess billing history.\n\n"
+                "Steps:\n"
+                "1. Load mess://billing/history to get all monthly bills.\n"
+                "2. Identify the most expensive month and the largest cost components "
+                "(food, extras, infrastructure).\n"
+                "3. Use list_extras_in_range to understand extra item spending patterns.\n"
+                "4. Provide three concrete recommendations for reducing my bill next month, "
+                "specifically mentioning the skip window and cancellation budget."
+            ),
+        }
+    ]
+
+
+@mcp.prompt()
+def submit_recent_feedback(date: str) -> list:
+    """
+    Guide the assistant to collect and submit structured meal feedback.
+
+    Looks up which meals the user ate, asks targeted quality questions,
+    then files formal feedback through the API.
+
+    Args:
+        date: The date to review (YYYY-MM-DD).
+    """
+    return [
+        {
+            "role": "user",
+            "content": (
+                f"I would like to submit feedback for the meals I had on {date} "
+                "at the IIIT-H mess.\n\n"
+                "Please:\n"
+                "1. Use get_registration to find all meals I attended that day.\n"
+                "2. For each meal, ask me focused questions: "
+                "taste quality (1–5), food temperature, hygiene observations, "
+                "and any specific dish complaints.\n"
+                "3. Once I have answered, call submit_feedback for each meal with a "
+                "structured rating and a concise remarks string summarising my responses."
+            ),
+        }
+    ]
+
+
+@mcp.prompt()
+def check_cancellation_budget(meal: str) -> list:
+    """
+    Guide the assistant to report remaining cancellation allowance for a meal.
+
+    Fetches the current cancellation count and system maximum, then clearly
+    states how many cancellations remain before penalties apply.
+
+    Args:
+        meal: One of 'breakfast', 'lunch', 'snacks', 'dinner'.
+    """
+    return [
+        {
+            "role": "user",
+            "content": (
+                f"How many {meal} cancellations do I have left this month at IIIT-H?\n\n"
+                "Please:\n"
+                f"1. Call get_cancellation_count with meal='{meal}' to get my current count.\n"
+                "2. Load mess://config/windows to find the system cancellation maximum.\n"
+                "3. Calculate and clearly state: used / maximum, and how many remain.\n"
+                "4. If I am at or near the limit, warn me and suggest using the skip "
+                "window instead of cancellation for upcoming meals."
+            ),
+        }
     ]

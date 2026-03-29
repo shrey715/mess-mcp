@@ -1,6 +1,6 @@
 # Mess MCP Server
 
-A Model Context Protocol (MCP) server for the IIIT Mess portal. This server provides robust, real-time integration enabling AI assistants to securely interact with the institution's mess dining and marketplace systems over standard STDIO transports.
+A Model Context Protocol (MCP) server for the IIIT-H Mess portal. This server provides robust, real-time integration enabling AI assistants to securely interact with the institution's mess dining and marketplace systems over standard STDIO transports.
 
 ## Architecture & Features
 
@@ -35,7 +35,7 @@ The server interfaces via the official Anthropic `mcp` SDK, abstracting the `mes
 The server operations are authenticated. You must set the correct environment variables before launch, preventing API tokens from passing unnecessarily through the language model context window.
 
 ```bash
-export MESS_API_KEY="your-jwt-or-api-token"
+export MESS_API_KEY="your-api-token"
 ```
 
 ## Usage Integration
