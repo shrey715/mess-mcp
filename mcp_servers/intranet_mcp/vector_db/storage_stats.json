@@ -1,8 +1,0 @@
-{
-  "collection_name": "intranet_docs",
-  "total_chunks": 1849,
-  "metadata": {
-    "embedding_model": "intfloat/e5-base-v2",
-    "description": "IIITH intranet policy documents"
-  }
-}
